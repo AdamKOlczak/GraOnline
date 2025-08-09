@@ -2,6 +2,8 @@
 <html>
 <head>
   <title>Boat Game with Wind Direction</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
     table {
       border-collapse: collapse;
@@ -41,6 +43,13 @@
 </head>
 <body>
   <h2>Boat Game with Wind</h2>
+  
+  <div id="playerSelection">
+    <p>Wybierz gracza:</p>
+    <button id="choosePlayer1">Player 1 (🚤1)</button>
+    <button id="choosePlayer2">Player 2 (🚤2)</button>
+  </div>
+  
   <p id="windInfo"></p>
   <p id="turnInfo"></p>
   <table id="grid"></table>
@@ -57,20 +66,155 @@
     <button id="btnDownRight">↘</button>
   </div>
 
-  <div id="playerSelection">
-  <p>Wybierz gracza:</p>
-  <button id="choosePlayer1">Player 1 (🚤1)</button>
-  <button id="choosePlayer2">Player 2 (🚤2)</button>
-</div>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyATOiD3Hp077WyGNi50KFTCxx_yrmuyxf0",
+      authDomain: "gratest-cfc14.firebaseapp.com",
+      databaseURL: "https://gratest-cfc14-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "gratest-cfc14",
+      storageBucket: "gratest-cfc14.firebasestorage.app",
+      messagingSenderId: "26328738989",
+      appId: "1:26328738989:web:18484211ec540a9cf66a24"
+    };
 
-  <!-- Firebase scripts -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-  <!-- Your scripts -->
-  <script type="module" src="firebase-config.js"></script>
-  <script type="module" src="game-state.js"></script>
-  <script type="module" src="ui.js"></script>
+    const SIZE = 8;
+    const directions = ["NW", "NE", "SW", "SE"];
+    const directionSymbols = { 
+      "NW": "↖", "NE": "↗", 
+      "SW": "↙", "SE": "↘" 
+    };
+
+    const gridEl = document.getElementById('grid');
+    const turnInfo = document.getElementById('turnInfo');
+    const windInfo = document.getElementById('windInfo');
+    const btns = {
+      up: document.getElementById('btnUp'),
+      down: document.getElementById('btnDown'),
+      left: document.getElementById('btnLeft'),
+      right: document.getElementById('btnRight'),
+      upLeft: document.getElementById('btnUpLeft'),
+      upRight: document.getElementById('btnUpRight'),
+      downLeft: document.getElementById('btnDownLeft'),
+      downRight: document.getElementById('btnDownRight')
+    };
+
+    let player = null;
+
+    // Wyłącz ruchowe przyciski na start
+    Object.values(btns).forEach(btn => btn.disabled = true);
+
+    // Referencja do gry w bazie
+    const gameRef = db.ref('boatGameWind8x8');
+
+    // Inicjalizacja gry jeśli nie ma jeszcze w bazie
+    gameRef.once('value', snap => {
+      if (!snap.exists()) {
+        gameRef.set({
+          p1: { row: SIZE - 1, col: 0 },       // SW
+          p2: { row: 0, col: SIZE - 1 },       // NE
+          currentTurn: "player1",
+          wind: directions[Math.floor(Math.random() * directions.length)]
+        });
+      }
+    });
+
+    // Rysowanie planszy
+    function drawGrid(game) {
+      gridEl.innerHTML = '';
+      for (let r = 0; r < SIZE; r++) {
+        const tr = document.createElement('tr');
+        for (let c = 0; c < SIZE; c++) {
+          const td = document.createElement('td');
+          if (r === game.p1.row && c === game.p1.col) {
+            td.textContent = '🚤1';
+            td.className = 'p1';
+          } else if (r === game.p2.row && c === game.p2.col) {
+            td.textContent = '🚤2';
+            td.className = 'p2';
+          }
+          tr.appendChild(td);
+        }
+        gridEl.appendChild(tr);
+      }
+    }
+
+    // Obsługa wyboru gracza
+    document.getElementById('choosePlayer1').onclick = () => {
+      player = 'player1';
+      afterPlayerSelected();
+    };
+    document.getElementById('choosePlayer2').onclick = () => {
+      player = 'player2';
+      afterPlayerSelected();
+    };
+
+    function afterPlayerSelected() {
+      document.getElementById('playerSelection').style.display = 'none';
+
+      // Wyświetl info o grze i włącz przyciski jeśli nasza tura
+      gameRef.once('value', snap => {
+        const game = snap.val();
+        if (!game) return;
+        updateTurnButtons(game);
+      });
+    }
+
+    // Funkcja włączająca/wyłączająca przyciski wg tury
+    function updateTurnButtons(game) {
+      const myTurn = (game.currentTurn === player);
+      Object.values(btns).forEach(btn => {
+        btn.disabled = !myTurn;
+      });
+      turnInfo.textContent = `Current turn: ${game.currentTurn} — You are ${player}`;
+    }
+
+    // Nasłuchujemy zmiany stanu gry w bazie i aktualizujemy UI
+    gameRef.on('value', snap => {
+      const game = snap.val();
+      if (!game) return;
+      drawGrid(game);
+      windInfo.textContent = `Wind: ${game.wind} ${directionSymbols[game.wind]}`;
+      if (player) {
+        updateTurnButtons(game);
+      }
+    });
+
+    // Wrapowanie ruchu na planszy (jak na torusie)
+    function wrap(value) {
+      return (value + SIZE) % SIZE;
+    }
+
+    // Funkcja ruchu gracza
+    function makeMove(deltaRow, deltaCol) {
+      gameRef.transaction(game => {
+        if (!game) return game;
+        if (game.currentTurn !== player) return game;
+
+        if (player === "player1") {
+          game.p1.row = wrap(game.p1.row + deltaRow);
+          game.p1.col = wrap(game.p1.col + deltaCol);
+        } else {
+          game.p2.row = wrap(game.p2.row + deltaRow);
+          game.p2.col = wrap(game.p2.col + deltaCol);
+        }
+
+        game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+        return game;
+      });
+    }
+
+    // Przypisanie obsługi kliknięć do przycisków ruchu
+    btns.up.onclick = () => makeMove(-1, 0);
+    btns.down.onclick = () => makeMove(1, 0);
+    btns.left.onclick = () => makeMove(0, -1);
+    btns.right.onclick = () => makeMove(0, 1);
+    btns.upLeft.onclick = () => makeMove(-1, -1);
+    btns.upRight.onclick = () => makeMove(-1, 1);
+    btns.downLeft.onclick = () => makeMove(1, -1);
+    btns.downRight.onclick = () => makeMove(1, 1);
+  </script>
 </body>
 </html>
-
