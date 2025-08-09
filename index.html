@@ -70,44 +70,50 @@
     const gameRef = db.ref('simpleGame');
 
     // Inicjalizacja gry (jeśli nie ma stanu)
-    function initGameIfNeeded() {
-      gameRef.once('value').then(snapshot => {
-        if (!snapshot.exists()) {
-          gameRef.set({
-            color: 'red',      // start z czerwonym
-            turn: 'player1'    // start tury player1
-          });
-        }
+function initGameIfNeeded() {
+  gameRef.once('value').then(snapshot => {
+    if (!snapshot.exists()) {
+      console.log('Inicjalizuję nową grę...');
+      gameRef.set({
+        color: 'red',      // start z czerwonym
+        turn: 'player1'    // start tury player1
       });
+    } else {
+      console.log('Gra już istnieje:', snapshot.val());
     }
+  });
+}
 
     initGameIfNeeded();
 
     // Nasłuchiwanie zmian stanu
-    gameRef.on('value', snapshot => {
-      const data = snapshot.val();
-      if (!data) return;
+gameRef.on('value', snapshot => {
+  const data = snapshot.val();
+  console.log('Otrzymano dane z Firebase:', data);
+  statusEl.textContent = 'Otrzymano dane: ' + JSON.stringify(data);
 
-      currentColor = data.color;
-      currentTurn = data.turn;
+  if (!data) return;
 
-      // Ustaw kolor przycisku
-      colorButton.style.backgroundColor = currentColor;
+  currentColor = data.color;
+  currentTurn = data.turn;
 
-      if (!playerId) {
-        statusEl.textContent = "Wybierz gracza, aby rozpocząć";
-        colorButton.disabled = true;
-        return;
-      }
+  // Ustaw kolor przycisku
+  colorButton.style.backgroundColor = currentColor;
 
-      if (currentTurn === playerId) {
-        statusEl.textContent = "Twoja tura! Kliknij przycisk";
-        colorButton.disabled = false;
-      } else {
-        statusEl.textContent = `Tura przeciwnika (${currentTurn})`;
-        colorButton.disabled = true;
-      }
-    });
+  if (!playerId) {
+    statusEl.textContent = "Wybierz gracza, aby rozpocząć";
+    colorButton.disabled = true;
+    return;
+  }
+
+  if (currentTurn === playerId) {
+    statusEl.textContent = "Twoja tura! Kliknij przycisk";
+    colorButton.disabled = false;
+  } else {
+    statusEl.textContent = `Tura przeciwnika (${currentTurn})`;
+    colorButton.disabled = true;
+  }
+});
 
     // Kliknięcie przycisku
     colorButton.addEventListener('click', () => {
@@ -124,12 +130,13 @@
     });
 
     // Dołączanie jako player1
-    btnPlayer1.addEventListener('click', () => {
-      playerId = 'player1';
-      choosePlayerDiv.style.display = 'none';
-      colorButton.disabled = true;
-      statusEl.textContent = 'Dołączyłeś jako Gracz 1 (Czerwony). Czekaj na swoją turę...';
-    });
+btnPlayer1.addEventListener('click', () => {
+  playerId = 'player1';
+  choosePlayerDiv.style.display = 'none';
+  colorButton.disabled = true;
+  statusEl.textContent = 'Dołączyłeś jako Gracz 1 (Czerwony). Czekaj na swoją turę...';
+  initGameIfNeeded();
+});
 
     // Dołączanie jako player2
     btnPlayer2.addEventListener('click', () => {
@@ -142,3 +149,4 @@
 
 </body>
 </html>
+
