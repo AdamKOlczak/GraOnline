@@ -1,22 +1,69 @@
 <!DOCTYPE html>
-<html lang="pl">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <title>Kółko i krzyżyk online</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Boat Game with Wind Direction</title>
+  <style>
+    table {
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    td {
+      width: 40px;
+      height: 40px;
+      border: 1px solid black;
+      text-align: center;
+      font-size: 18px;
+    }
+    button {
+      width: 50px;
+      height: 50px;
+      font-size: 16px;
+    }
+    .disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .p1 { color: red; font-weight: bold; }
+    .p2 { color: blue; font-weight: bold; }
+    .controls {
+      display: grid;
+      grid-template-columns: 50px 50px 50px;
+      grid-template-rows: 50px 50px 50px;
+      gap: 5px;
+      justify-content: center;
+      margin-top: 10px;
+    }
+    #windInfo {
+      font-size: 18px;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
+  <h2>Boat Game with Wind</h2>
+  <p id="windInfo"></p>
+  <p id="turnInfo"></p>
+  <table id="grid"></table>
 
-  <h1>Kółko i krzyżyk online</h1>
+  <div class="controls">
+    <button id="btnUpLeft">↖</button>
+    <button id="btnUp">↑</button>
+    <button id="btnUpRight">↗</button>
+    <button id="btnLeft">←</button>
+    <button disabled></button>
+    <button id="btnRight">→</button>
+    <button id="btnDownLeft">↙</button>
+    <button id="btnDown">↓</button>
+    <button id="btnDownRight">↘</button>
+  </div>
 
-  <button id="btnNewGame">Nowa gra</button>
-  <input type="text" id="gameIdInput" placeholder="Kod gry" maxlength="6" />
-  <button id="btnJoinGame">Dołącz do gry</button>
+  <!-- Firebase scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-  <div id="status">Wpisz kod gry lub zacznij nową</div>
-
-  <div id="board"></div>
-
-  <script type="module" src="main.js"></script>
+  <!-- Your scripts -->
+  <script type="module" src="firebase-config.js"></script>
+  <script type="module" src="game-state.js"></script>
+  <script type="module" src="ui.js"></script>
 </body>
 </html>
