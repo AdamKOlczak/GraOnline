@@ -1,55 +1,40 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Boat Game with Wind (Join Buttons)</title>
+  <meta charset="utf-8" />
+  <title>Boat Game — Join Buttons Fix</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
-    table {
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-    td {
-      width: 40px;
-      height: 40px;
-      border: 1px solid black;
-      text-align: center;
-      font-size: 18px;
-    }
-    button {
-      font-size: 16px;
-      padding: 8px;
-      margin: 4px;
-    }
-    .disabled {
-      opacity: 0.5;
-      pointer-events: none;
-    }
+    body { font-family: Arial, sans-serif; text-align: center; margin: 12px; }
+    table { border-collapse: collapse; margin: 10px auto; }
+    td { width: 40px; height: 40px; border: 1px solid #444; text-align: center; font-size: 18px; }
+    button { font-size: 14px; padding: 8px; margin: 4px; }
+    .disabled { opacity: 0.45; pointer-events: none; }
     .p1 { color: red; font-weight: bold; }
     .p2 { color: blue; font-weight: bold; }
-    .controls {
-      display: grid;
-      grid-template-columns: 50px 50px 50px;
-      grid-template-rows: 50px 50px 50px;
-      gap: 5px;
-      justify-content: center;
-      margin-top: 10px;
-    }
-    #windInfo {
-      font-size: 18px;
-      font-weight: bold;
-    }
+    .controls { display: grid; grid-template-columns: 50px 50px 50px; gap: 5px; justify-content: center; margin-top: 10px; }
+    #infoRow { display:flex; justify-content:center; gap:20px; align-items:center; margin:8px; }
+    #log { font-family: monospace; font-size:12px; background:#111; color:#0f0; padding:8px; max-height:120px; overflow:auto; margin:10px auto; width:640px; text-align:left; }
   </style>
 </head>
 <body>
-  <h2>Boat Game with Wind</h2>
-  <div>
-    <button id="joinP1">Join as Player 1 🚤</button>
-    <button id="joinP2">Join as Player 2 🚤</button>
+
+  <h2>Boat Game — Join Buttons (fixed)</h2>
+
+  <div id="infoRow">
+    <div>
+      <button id="joinP1">Join as Player 1 🚤 (SW)</button>
+      <button id="joinP2">Join as Player 2 🚤 (NE)</button>
+    </div>
+    <div>
+      <strong id="playerStatus">Not joined</strong><br>
+      <span id="windInfo"></span><br>
+      <span id="turnInfo"></span>
+    </div>
   </div>
-  <p id="windInfo"></p>
-  <p id="turnInfo"></p>
-  <table id="grid"></table>
+
+  <table id="grid" aria-hidden="false"></table>
 
   <div class="controls">
     <button id="btnUpLeft">↖</button>
@@ -63,146 +48,194 @@
     <button id="btnDownRight">↘</button>
   </div>
 
-  <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyATOiD3Hp077WyGNi50KFTCxx_yrmuyxf0",
-      authDomain: "gratest-cfc14.firebaseapp.com",
-      databaseURL: "https://gratest-cfc14-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "gratest-cfc14",
-      storageBucket: "gratest-cfc14.firebasestorage.app",
-      messagingSenderId: "26328738989",
-      appId: "1:26328738989:web:18484211ec540a9cf66a24"
-    };
+  <div id="log"></div>
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+<script>
+  // ---------- FIREBASE CONFIG ----------
+  const firebaseConfig = {
+    apiKey: "AIzaSyATOiD3Hp077WyGNi50KFTCxx_yrmuyxf0",
+    authDomain: "gratest-cfc14.firebaseapp.com",
+    databaseURL: "https://gratest-cfc14-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "gratest-cfc14",
+    storageBucket: "gratest-cfc14.firebasestorage.app",
+    messagingSenderId: "26328738989",
+    appId: "1:26328738989:web:18484211ec540a9cf66a24"
+  };
 
-    const SIZE = 8;
-    const directions = ["NW", "SE"];
-    const directionSymbols = { 
-      "NW": "↖", "SE": "↘"
-    };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
 
-    const gridEl = document.getElementById('grid');
-    const turnInfo = document.getElementById('turnInfo');
-    const windInfo = document.getElementById('windInfo');
-    const joinP1Btn = document.getElementById('joinP1');
-    const joinP2Btn = document.getElementById('joinP2');
-    let player = null;
+  // ---------- ELEMENTS & STATE ----------
+  const SIZE = 8;
+  const directions = ["NW", "SE"];
+  const directionSymbols = { "NW":"↖", "SE":"↘" };
 
-    const btns = {
-      up: document.getElementById('btnUp'),
-      down: document.getElementById('btnDown'),
-      left: document.getElementById('btnLeft'),
-      right: document.getElementById('btnRight'),
-      upLeft: document.getElementById('btnUpLeft'),
-      upRight: document.getElementById('btnUpRight'),
-      downLeft: document.getElementById('btnDownLeft'),
-      downRight: document.getElementById('btnDownRight')
-    };
+  const joinP1Btn = document.getElementById('joinP1');
+  const joinP2Btn = document.getElementById('joinP2');
+  const playerStatus = document.getElementById('playerStatus');
+  const windInfo = document.getElementById('windInfo');
+  const turnInfo = document.getElementById('turnInfo');
+  const logEl = document.getElementById('log');
+  const gridEl = document.getElementById('grid');
 
-    const gameRef = db.ref('boatGameWind8x8');
+  const btns = {
+    up: document.getElementById('btnUp'),
+    down: document.getElementById('btnDown'),
+    left: document.getElementById('btnLeft'),
+    right: document.getElementById('btnRight'),
+    upLeft: document.getElementById('btnUpLeft'),
+    upRight: document.getElementById('btnUpRight'),
+    downLeft: document.getElementById('btnDownLeft'),
+    downRight: document.getElementById('btnDownRight')
+  };
 
-    // Initialize game
-    gameRef.once('value', snap => {
-      if (!snap.exists()) {
-        gameRef.set({
-          p1: null,
-          p2: null,
-          p1pos: { row: SIZE - 1, col: 0 },       // SW
-          p2pos: { row: 0, col: SIZE - 1 },       // NE
-          currentTurn: "player1",
-          wind: directions[Math.floor(Math.random() * directions.length)]
-        });
-      }
-    });
+  let player = null; // "player1" or "player2"
 
-    function drawGrid(game) {
-      gridEl.innerHTML = '';
-      for (let r = 0; r < SIZE; r++) {
-        const tr = document.createElement('tr');
-        for (let c = 0; c < SIZE; c++) {
-          const td = document.createElement('td');
-          if (r === game.p1pos.row && c === game.p1pos.col) {
-            td.textContent = '🚤1';
-            td.className = 'p1';
-          } else if (r === game.p2pos.row && c === game.p2pos.col) {
-            td.textContent = '🚤2';
-            td.className = 'p2';
-          }
-          tr.appendChild(td);
+  const gamePath = 'boatGameWind8x8';
+  const gameRef = db.ref(gamePath);
+
+  // ---------- small logger ----------
+  function log(msg) {
+    const time = new Date().toLocaleTimeString();
+    logEl.textContent += `[${time}] ${msg}\n`;
+    logEl.scrollTop = logEl.scrollHeight;
+    console.log(msg);
+  }
+
+  // ---------- initialize game only if missing ----------
+  gameRef.once('value').then(snap => {
+    if (!snap.exists()) {
+      const init = {
+        p1: null,
+        p2: null,
+        p1pos: { row: SIZE - 1, col: 0 }, // SW
+        p2pos: { row: 0, col: SIZE - 1 }, // NE
+        currentTurn: "player1",
+        wind: directions[Math.floor(Math.random() * directions.length)]
+      };
+      gameRef.set(init);
+      log('Initialized new game: ' + JSON.stringify(init));
+    } else {
+      log('Game exists: ' + JSON.stringify(snap.val()));
+    }
+  }).catch(err => log('init error: ' + err));
+
+  // ---------- draw grid ----------
+  function drawGrid(game) {
+    gridEl.innerHTML = '';
+    for (let r = 0; r < SIZE; r++) {
+      const tr = document.createElement('tr');
+      for (let c = 0; c < SIZE; c++) {
+        const td = document.createElement('td');
+        if (game && game.p1pos && r === game.p1pos.row && c === game.p1pos.col) {
+          td.textContent = '🚤1';
+          td.className = 'p1';
+        } else if (game && game.p2pos && r === game.p2pos.row && c === game.p2pos.col) {
+          td.textContent = '🚤2';
+          td.className = 'p2';
         }
-        gridEl.appendChild(tr);
+        tr.appendChild(td);
       }
+      gridEl.appendChild(tr);
+    }
+  }
+
+  // ---------- sync handler ----------
+  gameRef.on('value', snap => {
+    const game = snap.val();
+    log('on(value) -> ' + JSON.stringify(game));
+    if (!game) return;
+
+    // draw & infos
+    drawGrid(game);
+    windInfo.textContent = `Wind: ${game.wind} ${directionSymbols[game.wind] || ''}`;
+    turnInfo.textContent = `Current turn: ${game.currentTurn}`;
+
+    // disable join buttons if slot taken
+    joinP1Btn.disabled = !!game.p1;
+    joinP2Btn.disabled = !!game.p2;
+
+    // show our role if we have one
+    if (player) {
+      playerStatus.textContent = `You: ${player}`;
+    } else {
+      playerStatus.textContent = 'Not joined';
     }
 
-    // Sync with Firebase
-    gameRef.on('value', snap => {
-      const game = snap.val();
-      if (!game) return;
-      drawGrid(game);
-      windInfo.textContent = `Wind: ${game.wind} ${directionSymbols[game.wind]}`;
-      turnInfo.textContent = `Current turn: ${game.currentTurn}`;
+    // enable movement only if we've joined and it's our turn
+    const myTurn = player && (game.currentTurn === player);
+    Object.values(btns).forEach(b => b.classList.toggle('disabled', !myTurn));
+  });
 
-      joinP1Btn.disabled = !!game.p1;
-      joinP2Btn.disabled = !!game.p2;
-
-      const myTurn = (game.currentTurn === player);
-      Object.values(btns).forEach(btn => {
-        btn.classList.toggle('disabled', !myTurn || !player);
-      });
+  // ---------- claim functions using transaction on child ----------
+  function claimSlot(slotChild) {
+    log('Attempting to claim: ' + slotChild);
+    const slotRef = db.ref(`${gamePath}/${slotChild}`);
+    slotRef.transaction(current => {
+      if (current) {
+        // someone already claimed
+        return; // abort (return undefined)
+      }
+      return true; // claim
+    }, (error, committed, snapshot) => {
+      if (error) {
+        log('Transaction error: ' + error);
+        alert('Error claiming slot: ' + error);
+      } else if (!committed) {
+        log('Claim NOT committed (already taken).');
+        alert(`${slotChild} already taken`);
+      } else {
+        // success: set local player immediately
+        player = (slotChild === 'p1') ? 'player1' : 'player2';
+        playerStatus.textContent = `You: ${player}`;
+        log('Successfully claimed ' + slotChild + ', local player set to ' + player);
+        // disable the button locally right away to show feedback
+        if (player === 'player1') joinP1Btn.disabled = true;
+        if (player === 'player2') joinP2Btn.disabled = true;
+      }
     });
+  }
 
-    // Join as player
-joinP1Btn.onclick = () => {
-  gameRef.get().then(snap => {
-    const game = snap.val();
-    if (!game.p1) {
-      player = "player1"; // store locally immediately
-      gameRef.update({ p1: true });
-    }
-  });
-};
+  joinP1Btn.onclick = () => claimSlot('p1');
+  joinP2Btn.onclick = () => claimSlot('p2');
 
-joinP2Btn.onclick = () => {
-  gameRef.get().then(snap => {
-    const game = snap.val();
-    if (!game.p2) {
-      player = "player2"; // store locally immediately
-      gameRef.update({ p2: true });
-    }
-  });
-};
+  // ---------- wrap and move ----------
+  function wrap(v) { return (v + SIZE) % SIZE; }
 
-    function wrap(value) {
-      return (value + SIZE) % SIZE;
-    }
+  function makeMove(deltaRow, deltaCol) {
+    if (!player) { alert('You must join as a player first'); return; }
+    gameRef.transaction(game => {
+      if (!game) return game;
+      if (game.currentTurn !== player) return game; // not our turn
 
-    function makeMove(deltaRow, deltaCol) {
-      if (!player) return;
-      gameRef.transaction(game => {
-        if (!game) return game;
-        if (game.currentTurn !== player) return game;
+      const key = player === 'player1' ? 'p1pos' : 'p2pos';
+      game[key].row = wrap(game[key].row + deltaRow);
+      game[key].col = wrap(game[key].col + deltaCol);
 
-        const posKey = player === "player1" ? "p1pos" : "p2pos";
-        game[posKey].row = wrap(game[posKey].row + deltaRow);
-        game[posKey].col = wrap(game[posKey].col + deltaCol);
+      // switch turn
+      game.currentTurn = (game.currentTurn === 'player1') ? 'player2' : 'player1';
+      return game;
+    }, (err, committed, snap) => {
+      if (err) { log('move tx err: ' + err); }
+      else if (!committed) { log('move not committed (maybe not your turn)'); }
+      else { log('move committed.'); }
+    });
+  }
 
-        game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
-        return game;
-      });
-    }
+  // ---------- bind buttons ----------
+  btns.up.onclick = () => makeMove(-1, 0);
+  btns.down.onclick = () => makeMove(1, 0);
+  btns.left.onclick = () => makeMove(0, -1);
+  btns.right.onclick = () => makeMove(0, 1);
+  btns.upLeft.onclick = () => makeMove(-1, -1);
+  btns.upRight.onclick = () => makeMove(-1, 1);
+  btns.downLeft.onclick = () => makeMove(1, -1);
+  btns.downRight.onclick = () => makeMove(1, 1);
 
-    // Movement buttons
-    btns.up.onclick = () => makeMove(-1, 0);
-    btns.down.onclick = () => makeMove(1, 0);
-    btns.left.onclick = () => makeMove(0, -1);
-    btns.right.onclick = () => makeMove(0, 1);
-    btns.upLeft.onclick = () => makeMove(-1, -1);
-    btns.upRight.onclick = () => makeMove(-1, 1);
-    btns.downLeft.onclick = () => makeMove(1, -1);
-    btns.downRight.onclick = () => makeMove(1, 1);
-  </script>
+  // initial UI state
+  Object.values(btns).forEach(b => b.classList.add('disabled'));
+  log('Script loaded.');
+
+</script>
 </body>
 </html>
-
