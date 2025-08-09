@@ -41,11 +41,6 @@
     appId: "1:26328738989:web:18484211ec540a9cf66a24"
   };
 
-  // Initialize Firebase
-  const app = firebase.initializeApp(firebaseConfig);
-  const database = firebase.database();
-
-  // dalej piszesz kod do pracy z bazą
 
   // ---------------------------------------------------------------------------
 
@@ -173,37 +168,30 @@
 
   // Dołączanie do gry
   btnJoinGame.addEventListener('click', () => {
-    const inputId = gameIdInput.value.trim().toUpperCase();
-    if (!inputId) {
-      alert('Podaj kod gry!');
+  const inputId = gameIdInput.value.trim().toUpperCase();
+  if (!inputId) {
+    alert('Podaj kod gry!');
+    return;
+  }
+  db.ref('games/' + inputId).once('value').then(snapshot => {
+    const data = snapshot.val();
+    if (!data) {
+      alert('Nie ma takiej gry!');
       return;
     }
-    db.ref('games/' + inputId).once('value').then(snapshot => {
-      const data = snapshot.val();
-      if (!data) {
-        alert('Nie ma takiej gry!');
-        return;
-      }
-      if (data.turn !== 'X' && data.turn !== 'O') {
-        alert('Gra już zakończona.');
-        return;
-      }
-      gameId = inputId;
-      playerSymbol = 'O';  // Dołączający zawsze O
-      listenToGame();
-      statusEl.textContent = `Dołączyłeś do gry ${gameId}. Tura gracza X.`;
-    });
+    if (data.winner) {
+      alert('Gra już zakończona.');
+      return;
+    }
+    gameId = inputId;
+    playerSymbol = 'O';  // Dołączający zawsze O
+    listenToGame();
+    myTurn = (data.turn === playerSymbol);
+    statusEl.textContent = `Dołączyłeś do gry ${gameId}. Tura gracza ${data.turn}.`;
   });
+});
 
 </script>
-
-
-<!-- Firebase App -->
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
-<!-- Firebase Database -->
-<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js"></script>
-
-
 
 </body>
 </html>
