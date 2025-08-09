@@ -81,16 +81,18 @@
 
   // Aktualizuj widok planszy
   function updateBoard() {
-    for(let i=0; i<9; i++) {
-      const cell = boardEl.querySelector(`[data-index="${i}"]`);
-      cell.textContent = boardState[i] || '';
-      if (!myTurn || boardState[i]) {
-        cell.classList.add('disabled');
-      } else {
-        cell.classList.remove('disabled');
-      }
+  for(let i=0; i<9; i++) {
+    const cell = boardEl.querySelector(`[data-index="${i}"]`);
+    cell.textContent = boardState[i] || '';
+    if (!myTurn || boardState[i]) {
+      cell.classList.add('disabled');
+      cell.style.pointerEvents = 'none';
+    } else {
+      cell.classList.remove('disabled');
+      cell.style.pointerEvents = 'auto';
     }
   }
+}
 
   // Sprawdza, czy jest zwycięzca lub remis
   function checkWinner(board) {
