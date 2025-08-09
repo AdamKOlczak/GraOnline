@@ -149,24 +149,31 @@
       }
     });
 
-    function drawGrid(game) {
-      gridEl.innerHTML = '';
-      for (let r = 0; r < SIZE; r++) {
-        const tr = document.createElement('tr');
-        for (let c = 0; c < SIZE; c++) {
-          const td = document.createElement('td');
-          if (r === game.p1.row && c === game.p1.col) {
-            td.textContent = '🚤1';
-            td.className = 'p1';
-          } else if (r === game.p2.row && c === game.p2.col) {
-            td.textContent = '🚤2';
-            td.className = 'p2';
-          }
-          tr.appendChild(td);
-        }
-        gridEl.appendChild(tr);
+function drawGrid(game) {
+  gridEl.innerHTML = '';
+  for (let r = 0; r < SIZE; r++) {
+    const tr = document.createElement('tr');
+    for (let c = 0; c < SIZE; c++) {
+      const td = document.createElement('td');
+      // Check if player 1 is here
+      if (r === game.p1.row && c === game.p1.col) {
+        td.textContent = '🚤1';
+        td.className = 'p1';
       }
+      // Player 2
+      else if (r === game.p2.row && c === game.p2.col) {
+        td.textContent = '🚤2';
+        td.className = 'p2';
+      }
+      // Debris
+      else if (game.debris && game.debris.some(d => d.row === r && d.col === c)) {
+        td.textContent = '🪵'; // debris emoji, you can pick others like '🌊' or '⚓️'
+      }
+      tr.appendChild(td);
     }
+    gridEl.appendChild(tr);
+  }
+}
 
     document.getElementById('choosePlayer1').onclick = () => {
       player = 'player1';
@@ -296,15 +303,43 @@ gameRef.on('value', snap => {
     btns.downLeft.onclick = () => handleAction(1, -1);
     btns.downRight.onclick = () => handleAction(1, 1);
 
-    function resetGame() {
-      const newWind = initialWinds[Math.floor(Math.random() * initialWinds.length)];
-      return gameRef.set({
-        p1: { row: SIZE - 1, col: 0 },
-        p2: { row: 0, col: SIZE - 1 },
-        currentTurn: "player1",
-        wind: newWind
-      });
+function resetGame() {
+  // Start positions
+  const p1start = { row: SIZE - 1, col: 0 };  // (7,0)
+  const p2start = { row: 0, col: SIZE - 1 };  // (0,7)
+
+  // Middle 4 squares rows 3 & 4, cols 3 & 4
+  const forbidden = new Set();
+  forbidden.add(`${p1start.row},${p1start.col}`);
+  forbidden.add(`${p2start.row},${p2start.col}`);
+  for (let r = 3; r <= 4; r++) {
+    for (let c = 3; c <= 4; c++) {
+      forbidden.add(`${r},${c}`);
     }
+  }
+
+  // Generate 8 unique debris positions
+  const debris = [];
+  while (debris.length < 8) {
+    const r = Math.floor(Math.random() * SIZE);
+    const c = Math.floor(Math.random() * SIZE);
+    const key = `${r},${c}`;
+    if (!forbidden.has(key) && !debris.some(d => d.row === r && d.col === c)) {
+      debris.push({ row: r, col: c });
+    }
+  }
+
+  // Wind start only NW or SE
+  const newWind = Math.random() < 0.5 ? "NW" : "SE";
+
+  return gameRef.set({
+    p1: p1start,
+    p2: p2start,
+    currentTurn: "player1",
+    wind: newWind,
+    debris: debris
+  });
+}
 
     document.getElementById('btnResetGame').onclick = () => {
       resetGame()
@@ -314,4 +349,5 @@ gameRef.on('value', snap => {
   </script>
 </body>
 </html>
+
 
