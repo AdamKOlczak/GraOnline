@@ -1,12 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Turn-based 8×8 Grid</title>
+  <title>Turn-based 8×8 Grid with Diagonals</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
     table {
       border-collapse: collapse;
+      margin-top: 10px;
     }
     td {
       width: 40px;
@@ -16,8 +17,9 @@
       font-size: 18px;
     }
     button {
-      margin: 5px;
-      padding: 5px 10px;
+      width: 50px;
+      height: 50px;
+      font-size: 16px;
     }
     .disabled {
       opacity: 0.5;
@@ -25,17 +27,33 @@
     }
     .p1 { color: red; font-weight: bold; }
     .p2 { color: blue; font-weight: bold; }
+
+    /* Clock-style control panel */
+    .controls {
+      display: grid;
+      grid-template-columns: 50px 50px 50px;
+      grid-template-rows: 50px 50px 50px;
+      gap: 5px;
+      justify-content: center;
+      margin-top: 10px;
+    }
   </style>
 </head>
 <body>
-  <h2>Turn-based 8×8 Grid</h2>
+  <h2>Turn-based 8×8 Grid with Diagonals</h2>
   <p id="turnInfo"></p>
   <table id="grid"></table>
-  <div>
-    <button id="btnUp">Up</button>
-    <button id="btnDown">Down</button>
-    <button id="btnLeft">Left</button>
-    <button id="btnRight">Right</button>
+
+  <div class="controls">
+    <button id="btnUpLeft">↖</button>
+    <button id="btnUp">↑</button>
+    <button id="btnUpRight">↗</button>
+    <button id="btnLeft">←</button>
+    <button disabled></button> <!-- Empty center -->
+    <button id="btnRight">→</button>
+    <button id="btnDownLeft">↙</button>
+    <button id="btnDown">↓</button>
+    <button id="btnDownRight">↘</button>
   </div>
 
   <script>
@@ -58,11 +76,15 @@
       up: document.getElementById('btnUp'),
       down: document.getElementById('btnDown'),
       left: document.getElementById('btnLeft'),
-      right: document.getElementById('btnRight')
+      right: document.getElementById('btnRight'),
+      upLeft: document.getElementById('btnUpLeft'),
+      upRight: document.getElementById('btnUpRight'),
+      downLeft: document.getElementById('btnDownLeft'),
+      downRight: document.getElementById('btnDownRight')
     };
 
     const player = prompt("Enter your player name (player1 or player2):").trim().toLowerCase();
-    const gameRef = db.ref('turnGridGame8x8');
+    const gameRef = db.ref('turnGridGame8x8Diagonals');
 
     // Initialize if empty
     gameRef.once('value', snap => {
@@ -126,6 +148,10 @@
     btns.down.onclick = () => makeMove(1, 0);
     btns.left.onclick = () => makeMove(0, -1);
     btns.right.onclick = () => makeMove(0, 1);
+    btns.upLeft.onclick = () => makeMove(-1, -1);
+    btns.upRight.onclick = () => makeMove(-1, 1);
+    btns.downLeft.onclick = () => makeMove(1, -1);
+    btns.downRight.onclick = () => makeMove(1, 1);
   </script>
 </body>
 </html>
