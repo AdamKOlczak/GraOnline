@@ -10,6 +10,20 @@
     .cell.disabled { cursor: default; color: #aaa; }
     #status { margin-top: 20px; font-size: 20px; }
     #gameIdInput { width: 120px; font-size: 16px; }
+    #debugPanel {
+      margin: 20px auto;
+      width: 320px;
+      background: #222;
+      color: #0f0;
+      font-family: monospace;
+      font-size: 14px;
+      text-align: left;
+      padding: 10px;
+      white-space: pre-wrap;
+      max-height: 200px;
+      overflow-y: auto;
+      border-radius: 6px;
+    }
   </style>
 
   <!-- Firebase SDK -->
@@ -28,6 +42,9 @@
 
   <div id="board"></div>
 
+  <!-- Debug panel -->
+  <div id="debugPanel"></div>
+
 <script>
   // --------------------- TU WPISZ KONFIGURACJĘ FIREBASE ---------------------
 
@@ -40,7 +57,6 @@
     messagingSenderId: "26328738989",
     appId: "1:26328738989:web:18484211ec540a9cf66a24"
   };
-
 
   // ---------------------------------------------------------------------------
 
@@ -59,6 +75,14 @@
   const btnNewGame = document.getElementById('btnNewGame');
   const btnJoinGame = document.getElementById('btnJoinGame');
   const gameIdInput = document.getElementById('gameIdInput');
+  const debugPanel = document.getElementById('debugPanel');
+
+  // Prosta funkcja do logowania debug info w panelu
+  function debugLog(message) {
+    const time = new Date().toLocaleTimeString();
+    debugPanel.textContent += `[${time}] ${message}\n`;
+    debugPanel.scrollTop = debugPanel.scrollHeight; // przewiń na dół
+  }
 
   // Tworzymy planszę w HTML
   function createBoard() {
@@ -81,18 +105,19 @@
 
   // Aktualizuj widok planszy
   function updateBoard() {
-  for(let i=0; i<9; i++) {
-    const cell = boardEl.querySelector(`[data-index="${i}"]`);
-    cell.textContent = boardState[i] || '';
-    if (!myTurn || boardState[i]) {
-      cell.classList.add('disabled');
-      cell.style.pointerEvents = 'none';
-    } else {
-      cell.classList.remove('disabled');
-      cell.style.pointerEvents = 'auto';
+    for(let i=0; i<9; i++) {
+      const cell = boardEl.querySelector(`[data-index="${i}"]`);
+      cell.textContent = boardState[i] || '';
+      if (!myTurn || boardState[i]) {
+        cell.classList.add('disabled');
+        cell.style.pointerEvents = 'none';
+      } else {
+        cell.classList.remove('disabled');
+        cell.style.pointerEvents = 'auto';
+      }
     }
+    debugLog(`updateBoard: myTurn=${myTurn}, board=${boardState.map(x=>x||'.').join('')}`);
   }
-}
 
   // Sprawdza, czy jest zwycięzca lub remis
   function checkWinner(board) {
@@ -112,28 +137,41 @@
 
   // Ruch gracza — próba zapisania ruchu w bazie
   function makeMove(i) {
-  if (!myTurn || boardState[i]) return;
-  if (checkWinner(boardState)) return;
+    debugLog(`makeMove: próbuję ruch na polu ${i}`);
+    if (!myTurn) {
+      debugLog(`makeMove: nie moja tura!`);
+      return;
+    }
+    if (boardState[i]) {
+      debugLog(`makeMove: pole zajęte`);
+      return;
+    }
+    if (checkWinner(boardState)) {
+      debugLog(`makeMove: gra zakończona`);
+      return;
+    }
 
-  // Nie zmieniaj lokalnie planszy ani UI od razu!
-  // Po prostu zapisz ruch do Firebase, a potem nasłuchuj zmiany:
-  const newBoard = [...boardState];
-  newBoard[i] = playerSymbol;
-  const winner = checkWinner(newBoard);
+    const newBoard = [...boardState];
+    newBoard[i] = playerSymbol;
+    const winner = checkWinner(newBoard);
 
-  db.ref('games/' + gameId).update({
-    board: newBoard,
-    turn: playerSymbol === 'X' ? 'O' : 'X',
-    winner: winner || null
-  });
-}
+    debugLog(`makeMove: zapisuję ruch, nowa plansza: ${newBoard.map(x=>x||'.').join('')}, winner=${winner}`);
+
+    db.ref('games/' + gameId).update({
+      board: newBoard,
+      turn: playerSymbol === 'X' ? 'O' : 'X',
+      winner: winner || null
+    });
+  }
 
   // Nasłuchiwanie zmian w grze
   function listenToGame() {
     db.ref('games/' + gameId).on('value', snapshot => {
       const data = snapshot.val();
+      debugLog(`listenToGame: update z bazy: ${JSON.stringify(data)}`);
       if (!data) {
         statusEl.textContent = 'Gra nie istnieje lub została zakończona.';
+        debugLog('listenToGame: brak danych gry');
         return;
       }
       boardState = data.board || Array(9).fill(null);
@@ -142,13 +180,16 @@
       if (data.winner) {
         if (data.winner === 'draw') {
           statusEl.textContent = 'Remis! 🎉';
+          debugLog('listenToGame: remis');
         } else {
           statusEl.textContent = data.winner === playerSymbol ? 'Wygrałeś! 🎉' : 'Przegrałeś :(';
+          debugLog(`listenToGame: wygrał ${data.winner}`);
         }
         myTurn = false;
       } else {
         myTurn = (data.turn === playerSymbol);
         statusEl.textContent = myTurn ? 'Twoja tura!' : 'Tura przeciwnika...';
+        debugLog(`listenToGame: tura gracza ${data.turn}, myTurn=${myTurn}`);
       }
     });
   }
@@ -169,34 +210,7 @@
     listenToGame();
 
     statusEl.textContent = `Nowa gra utworzona. Kod gry: ${gameId}. Czekaj na przeciwnika.`;
+    debugLog(`Nowa gra: ID=${gameId}, symbol=${playerSymbol}, myTurn=${myTurn}`);
   });
 
-  // Dołączanie do gry
-  btnJoinGame.addEventListener('click', () => {
-  const inputId = gameIdInput.value.trim().toUpperCase();
-  if (!inputId) {
-    alert('Podaj kod gry!');
-    return;
-  }
-  db.ref('games/' + inputId).once('value').then(snapshot => {
-    const data = snapshot.val();
-    if (!data) {
-      alert('Nie ma takiej gry!');
-      return;
-    }
-    if (data.winner) {
-      alert('Gra już zakończona.');
-      return;
-    }
-    gameId = inputId;
-    playerSymbol = 'O';  // Dołączający zawsze O
-    listenToGame();
-    myTurn = (data.turn === playerSymbol);
-    statusEl.textContent = `Dołączyłeś do gry ${gameId}. Tura gracza ${data.turn}.`;
-  });
-});
-
-</script>
-
-</body>
-</html>
+ 
