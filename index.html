@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Turn-based 8×8 Grid with Wrap-Around</title>
+  <title>Boat Game with Wind Direction</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
@@ -27,7 +27,6 @@
     }
     .p1 { color: red; font-weight: bold; }
     .p2 { color: blue; font-weight: bold; }
-
     .controls {
       display: grid;
       grid-template-columns: 50px 50px 50px;
@@ -36,10 +35,15 @@
       justify-content: center;
       margin-top: 10px;
     }
+    #windInfo {
+      font-size: 18px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
-  <h2>Turn-based 8×8 Grid with Wrap-Around</h2>
+  <h2>Boat Game with Wind</h2>
+  <p id="windInfo"></p>
   <p id="turnInfo"></p>
   <table id="grid"></table>
 
@@ -70,8 +74,15 @@
     const db = firebase.database();
 
     const SIZE = 8;
+    const directions = ["NW", "NE", "SW", "SE"];
+    const directionSymbols = { 
+      "NW": "↖", "NE": "↗", 
+      "SW": "↙", "SE": "↘" 
+    };
+
     const gridEl = document.getElementById('grid');
     const turnInfo = document.getElementById('turnInfo');
+    const windInfo = document.getElementById('windInfo');
     const btns = {
       up: document.getElementById('btnUp'),
       down: document.getElementById('btnDown'),
@@ -84,14 +95,16 @@
     };
 
     const player = prompt("Enter your player name (player1 or player2):").trim().toLowerCase();
-    const gameRef = db.ref('turnGridGame8x8Wrap');
+    const gameRef = db.ref('boatGameWind8x8');
 
+    // Initialize game if it doesn't exist yet
     gameRef.once('value', snap => {
       if (!snap.exists()) {
         gameRef.set({
-          p1: { row: 0, col: 0 },
-          p2: { row: SIZE - 1, col: SIZE - 1 },
-          currentTurn: "player1"
+          p1: { row: SIZE - 1, col: 0 },       // SW
+          p2: { row: 0, col: SIZE - 1 },       // NE
+          currentTurn: "player1",
+          wind: directions[Math.floor(Math.random() * directions.length)]
         });
       }
     });
@@ -103,10 +116,10 @@
         for (let c = 0; c < SIZE; c++) {
           const td = document.createElement('td');
           if (r === game.p1.row && c === game.p1.col) {
-            td.textContent = 'X1';
+            td.textContent = '🚤1';
             td.className = 'p1';
           } else if (r === game.p2.row && c === game.p2.col) {
-            td.textContent = 'X2';
+            td.textContent = '🚤2';
             td.className = 'p2';
           }
           tr.appendChild(td);
@@ -119,6 +132,7 @@
       const game = snap.val();
       if (!game) return;
       drawGrid(game);
+      windInfo.textContent = `Wind: ${game.wind} ${directionSymbols[game.wind]}`;
       turnInfo.textContent = `Current turn: ${game.currentTurn}`;
       const myTurn = (game.currentTurn === player);
       Object.values(btns).forEach(btn => {
@@ -148,6 +162,7 @@
       });
     }
 
+    // Bind movement buttons
     btns.up.onclick = () => makeMove(-1, 0);
     btns.down.onclick = () => makeMove(1, 0);
     btns.left.onclick = () => makeMove(0, -1);
