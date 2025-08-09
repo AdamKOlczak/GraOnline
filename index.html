@@ -2,27 +2,15 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <title>Kółko i krzyżyk multiplayer</title>
+  <title>Przycisk na zmianę z Firebase</title>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; }
-    #board { display: grid; grid-template-columns: repeat(3, 100px); gap: 5px; margin: 20px auto; }
-    .cell { width: 100px; height: 100px; background: #eee; font-size: 72px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-    .cell.disabled { cursor: default; color: #aaa; }
-    #status { margin-top: 20px; font-size: 20px; }
-    #gameIdInput { width: 120px; font-size: 16px; }
-    #debugPanel {
-      margin: 20px auto;
-      width: 320px;
-      background: #222;
-      color: #0f0;
-      font-family: monospace;
-      font-size: 14px;
-      text-align: left;
-      padding: 10px;
-      white-space: pre-wrap;
-      max-height: 200px;
-      overflow-y: auto;
-      border-radius: 6px;
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+    #colorButton {
+      width: 150px; height: 150px; font-size: 24px; border: none; cursor: pointer;
+      color: white; border-radius: 12px;
+    }
+    #status {
+      margin-top: 20px; font-size: 18px;
     }
   </style>
 
@@ -32,187 +20,94 @@
 </head>
 <body>
 
-  <h1>Kółko i krzyżyk online</h1>
+  <h1>Przycisk na zmianę - multiplayer</h1>
 
-  <button id="btnNewGame">Nowa gra</button>
-  <input type="text" id="gameIdInput" placeholder="Kod gry" maxlength="6" />
-  <button id="btnJoinGame">Dołącz do gry</button>
+  <button id="colorButton" disabled>Ładuję...</button>
 
-  <div id="status">Wpisz kod gry lub zacznij nową</div>
+  <div id="status">Ładowanie...</div>
 
-  <div id="board"></div>
+  <script>
+    // Konfiguracja Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyATOiD3Hp077WyGNi50KFTCxx_yrmuyxf0",
+      authDomain: "gratest-cfc14.firebaseapp.com",
+      databaseURL: "https://gratest-cfc14-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "gratest-cfc14",
+      storageBucket: "gratest-cfc14.firebasestorage.app",
+      messagingSenderId: "26328738989",
+      appId: "1:26328738989:web:18484211ec540a9cf66a24"
+    };
 
-  <!-- Debug panel -->
-  <div id="debugPanel"></div>
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-<script>
-  // --------------------- TU WPISZ KONFIGURACJĘ FIREBASE ---------------------
+    const colorButton = document.getElementById('colorButton');
+    const statusEl = document.getElementById('status');
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyATOiD3Hp077WyGNi50KFTCxx_yrmuyxf0",
-    authDomain: "gratest-cfc14.firebaseapp.com",
-    databaseURL: "https://gratest-cfc14-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "gratest-cfc14",
-    storageBucket: "gratest-cfc14.firebasestorage.app",
-    messagingSenderId: "26328738989",
-    appId: "1:26328738989:web:18484211ec540a9cf66a24"
-  };
+    // Prosty identyfikator gracza (na potrzeby demo)
+    // Różni się przy odświeżeniu strony
+    const playerId = Math.random().toString(36).substring(2, 7);
 
-  // ---------------------------------------------------------------------------
+    // Referencja do stanu gry w bazie
+    const gameRef = db.ref('simpleGame');
 
-  // Inicjalizacja Firebase
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
+    // Lokalny stan
+    let currentColor = null;  // 'red' lub 'green'
+    let currentTurn = null;   // playerId, kto ma teraz turę
 
-  // Globalne zmienne
-  let gameId = null;
-  let playerSymbol = null;  // "X" lub "O"
-  let myTurn = false;
-  let boardState = Array(9).fill(null);  // tablica 9 pól planszy
-
-  const boardEl = document.getElementById('board');
-  const statusEl = document.getElementById('status');
-  const btnNewGame = document.getElementById('btnNewGame');
-  const btnJoinGame = document.getElementById('btnJoinGame');
-  const gameIdInput = document.getElementById('gameIdInput');
-  const debugPanel = document.getElementById('debugPanel');
-
-  // Prosta funkcja do logowania debug info w panelu
-  function debugLog(message) {
-    const time = new Date().toLocaleTimeString();
-    debugPanel.textContent += `[${time}] ${message}\n`;
-    debugPanel.scrollTop = debugPanel.scrollHeight; // przewiń na dół
-  }
-
-  // Tworzymy planszę w HTML
-  function createBoard() {
-    boardEl.innerHTML = '';
-    for(let i=0; i<9; i++) {
-      const cell = document.createElement('div');
-      cell.classList.add('cell');
-      cell.dataset.index = i;
-      cell.addEventListener('click', () => makeMove(i));
-      boardEl.appendChild(cell);
-    }
-  }
-
-  createBoard();
-
-  // Generuje losowy 6-znakowy kod gry (litery i cyfry)
-  function generateGameId() {
-    return Math.random().toString(36).substring(2,8).toUpperCase();
-  }
-
-  // Aktualizuj widok planszy
-  function updateBoard() {
-    for(let i=0; i<9; i++) {
-      const cell = boardEl.querySelector(`[data-index="${i}"]`);
-      cell.textContent = boardState[i] || '';
-      if (!myTurn || boardState[i]) {
-        cell.classList.add('disabled');
-        cell.style.pointerEvents = 'none';
-      } else {
-        cell.classList.remove('disabled');
-        cell.style.pointerEvents = 'auto';
+    // Inicjalizacja gry (tylko jeśli nie ma w bazie stanu)
+    gameRef.once('value').then(snapshot => {
+      if (!snapshot.exists()) {
+        gameRef.set({
+          color: 'red',      // start z czerwonym
+          turn: null         // na start nikt nie ma tury
+        });
       }
-    }
-    debugLog(`updateBoard: myTurn=${myTurn}, board=${boardState.map(x=>x||'.').join('')}`);
-  }
-
-  // Sprawdza, czy jest zwycięzca lub remis
-  function checkWinner(board) {
-    const lines = [
-      [0,1,2], [3,4,5], [6,7,8],  // wiersze
-      [0,3,6], [1,4,7], [2,5,8],  // kolumny
-      [0,4,8], [2,4,6]            // przekątne
-    ];
-    for (const [a,b,c] of lines) {
-      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
-        return board[a]; // "X" lub "O"
-      }
-    }
-    if (board.every(cell => cell)) return 'draw';
-    return null;
-  }
-
-  // Ruch gracza — próba zapisania ruchu w bazie
-  function makeMove(i) {
-    debugLog(`makeMove: próbuję ruch na polu ${i}`);
-    if (!myTurn) {
-      debugLog(`makeMove: nie moja tura!`);
-      return;
-    }
-    if (boardState[i]) {
-      debugLog(`makeMove: pole zajęte`);
-      return;
-    }
-    if (checkWinner(boardState)) {
-      debugLog(`makeMove: gra zakończona`);
-      return;
-    }
-
-    const newBoard = [...boardState];
-    newBoard[i] = playerSymbol;
-    const winner = checkWinner(newBoard);
-
-    debugLog(`makeMove: zapisuję ruch, nowa plansza: ${newBoard.map(x=>x||'.').join('')}, winner=${winner}`);
-
-    db.ref('games/' + gameId).update({
-      board: newBoard,
-      turn: playerSymbol === 'X' ? 'O' : 'X',
-      winner: winner || null
     });
-  }
 
-  // Nasłuchiwanie zmian w grze
-  function listenToGame() {
-    db.ref('games/' + gameId).on('value', snapshot => {
+    // Nasłuchiwanie zmian stanu gry
+    gameRef.on('value', snapshot => {
       const data = snapshot.val();
-      debugLog(`listenToGame: update z bazy: ${JSON.stringify(data)}`);
-      if (!data) {
-        statusEl.textContent = 'Gra nie istnieje lub została zakończona.';
-        debugLog('listenToGame: brak danych gry');
-        return;
-      }
-      boardState = data.board || Array(9).fill(null);
-      updateBoard();
+      if (!data) return;
 
-      if (data.winner) {
-        if (data.winner === 'draw') {
-          statusEl.textContent = 'Remis! 🎉';
-          debugLog('listenToGame: remis');
-        } else {
-          statusEl.textContent = data.winner === playerSymbol ? 'Wygrałeś! 🎉' : 'Przegrałeś :(';
-          debugLog(`listenToGame: wygrał ${data.winner}`);
-        }
-        myTurn = false;
+      currentColor = data.color;
+      currentTurn = data.turn;
+
+      // Ustaw kolor przycisku
+      colorButton.style.backgroundColor = currentColor;
+
+      // Ustaw status i dostępność przycisku
+      if (currentTurn === playerId) {
+        statusEl.textContent = "Twoja tura! Kliknij przycisk";
+        colorButton.disabled = false;
+      } else if (currentTurn === null) {
+        // Pierwszy klik, tura nie została przydzielona
+        statusEl.textContent = "Naciśnij przycisk, by zacząć (tura przejdzie do Ciebie)";
+        colorButton.disabled = false;
       } else {
-        myTurn = (data.turn === playerSymbol);
-        statusEl.textContent = myTurn ? 'Twoja tura!' : 'Tura przeciwnika...';
-        debugLog(`listenToGame: tura gracza ${data.turn}, myTurn=${myTurn}`);
+        statusEl.textContent = `Tura przeciwnika (${currentTurn})`;
+        colorButton.disabled = true;
       }
     });
-  }
 
-  // Start nowej gry
-  btnNewGame.addEventListener('click', () => {
-    gameId = generateGameId();
-    playerSymbol = 'X';
-    myTurn = true;
-    boardState = Array(9).fill(null);
+    // Kliknięcie przycisku
+    colorButton.addEventListener('click', () => {
+      // Jeśli nie twoja tura i nie start, ignoruj
+      if (currentTurn !== playerId && currentTurn !== null) return;
 
-    db.ref('games/' + gameId).set({
-      board: boardState,
-      turn: 'X',
-      winner: null
+      // Zmiana koloru
+      const newColor = (currentColor === 'red') ? 'green' : 'red';
+
+      // Aktualizacja w bazie:
+      // Kolor się zmienia,
+      // Tura idzie do drugiego gracza albo jeśli null to przyznaj ją graczowi
+      gameRef.update({
+        color: newColor,
+        turn: (currentTurn === playerId) ? null : playerId
+      });
     });
+  </script>
 
-    listenToGame();
-
-    statusEl.textContent = `Nowa gra utworzona. Kod gry: ${gameId}. Czekaj na przeciwnika.`;
-    debugLog(`Nowa gra: ID=${gameId}, symbol=${playerSymbol}, myTurn=${myTurn}`);
-  });
-
- 
-
-
+</body>
+</html>
