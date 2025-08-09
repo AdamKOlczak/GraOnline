@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Boat Game with Wind Direction</title>
+  <title>Boat Game with Wind (Join Buttons)</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
@@ -17,9 +17,9 @@
       font-size: 18px;
     }
     button {
-      width: 50px;
-      height: 50px;
       font-size: 16px;
+      padding: 8px;
+      margin: 4px;
     }
     .disabled {
       opacity: 0.5;
@@ -43,6 +43,10 @@
 </head>
 <body>
   <h2>Boat Game with Wind</h2>
+  <div>
+    <button id="joinP1">Join as Player 1 🚤</button>
+    <button id="joinP2">Join as Player 2 🚤</button>
+  </div>
   <p id="windInfo"></p>
   <p id="turnInfo"></p>
   <table id="grid"></table>
@@ -74,15 +78,18 @@
     const db = firebase.database();
 
     const SIZE = 8;
-    const directions = ["NW", "NE", "SW", "SE"];
+    const directions = ["NW", "SE"];
     const directionSymbols = { 
-      "NW": "↖", "NE": "↗", 
-      "SW": "↙", "SE": "↘" 
+      "NW": "↖", "SE": "↘"
     };
 
     const gridEl = document.getElementById('grid');
     const turnInfo = document.getElementById('turnInfo');
     const windInfo = document.getElementById('windInfo');
+    const joinP1Btn = document.getElementById('joinP1');
+    const joinP2Btn = document.getElementById('joinP2');
+    let player = null;
+
     const btns = {
       up: document.getElementById('btnUp'),
       down: document.getElementById('btnDown'),
@@ -94,15 +101,16 @@
       downRight: document.getElementById('btnDownRight')
     };
 
-    const player = prompt("Enter your player name (player1 or player2):").trim().toLowerCase();
     const gameRef = db.ref('boatGameWind8x8');
 
-    // Initialize game if it doesn't exist yet
+    // Initialize game
     gameRef.once('value', snap => {
       if (!snap.exists()) {
         gameRef.set({
-          p1: { row: SIZE - 1, col: 0 },       // SW
-          p2: { row: 0, col: SIZE - 1 },       // NE
+          p1: null,
+          p2: null,
+          p1pos: { row: SIZE - 1, col: 0 },       // SW
+          p2pos: { row: 0, col: SIZE - 1 },       // NE
           currentTurn: "player1",
           wind: directions[Math.floor(Math.random() * directions.length)]
         });
@@ -115,10 +123,10 @@
         const tr = document.createElement('tr');
         for (let c = 0; c < SIZE; c++) {
           const td = document.createElement('td');
-          if (r === game.p1.row && c === game.p1.col) {
+          if (r === game.p1pos.row && c === game.p1pos.col) {
             td.textContent = '🚤1';
             td.className = 'p1';
-          } else if (r === game.p2.row && c === game.p2.col) {
+          } else if (r === game.p2pos.row && c === game.p2pos.col) {
             td.textContent = '🚤2';
             td.className = 'p2';
           }
@@ -128,41 +136,63 @@
       }
     }
 
+    // Sync with Firebase
     gameRef.on('value', snap => {
       const game = snap.val();
       if (!game) return;
       drawGrid(game);
       windInfo.textContent = `Wind: ${game.wind} ${directionSymbols[game.wind]}`;
       turnInfo.textContent = `Current turn: ${game.currentTurn}`;
+
+      joinP1Btn.disabled = !!game.p1;
+      joinP2Btn.disabled = !!game.p2;
+
       const myTurn = (game.currentTurn === player);
       Object.values(btns).forEach(btn => {
-        btn.classList.toggle('disabled', !myTurn);
+        btn.classList.toggle('disabled', !myTurn || !player);
       });
     });
+
+    // Join as player
+    joinP1Btn.onclick = () => {
+      gameRef.transaction(game => {
+        if (!game.p1) {
+          game.p1 = true;
+          player = "player1";
+        }
+        return game;
+      });
+    };
+    joinP2Btn.onclick = () => {
+      gameRef.transaction(game => {
+        if (!game.p2) {
+          game.p2 = true;
+          player = "player2";
+        }
+        return game;
+      });
+    };
 
     function wrap(value) {
       return (value + SIZE) % SIZE;
     }
 
     function makeMove(deltaRow, deltaCol) {
+      if (!player) return;
       gameRef.transaction(game => {
         if (!game) return game;
         if (game.currentTurn !== player) return game;
 
-        if (player === "player1") {
-          game.p1.row = wrap(game.p1.row + deltaRow);
-          game.p1.col = wrap(game.p1.col + deltaCol);
-        } else {
-          game.p2.row = wrap(game.p2.row + deltaRow);
-          game.p2.col = wrap(game.p2.col + deltaCol);
-        }
+        const posKey = player === "player1" ? "p1pos" : "p2pos";
+        game[posKey].row = wrap(game[posKey].row + deltaRow);
+        game[posKey].col = wrap(game[posKey].col + deltaCol);
 
         game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
         return game;
       });
     }
 
-    // Bind movement buttons
+    // Movement buttons
     btns.up.onclick = () => makeMove(-1, 0);
     btns.down.onclick = () => makeMove(1, 0);
     btns.left.onclick = () => makeMove(0, -1);
