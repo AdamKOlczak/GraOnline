@@ -110,18 +110,21 @@
 
   // Ruch gracza — próba zapisania ruchu w bazie
   function makeMove(i) {
-    if (!myTurn || boardState[i]) return;
+  if (!myTurn || boardState[i]) return;
+  if (checkWinner(boardState)) return;
 
-    boardState[i] = playerSymbol;
-    const winner = checkWinner(boardState);
+  // Nie zmieniaj lokalnie planszy ani UI od razu!
+  // Po prostu zapisz ruch do Firebase, a potem nasłuchuj zmiany:
+  const newBoard = [...boardState];
+  newBoard[i] = playerSymbol;
+  const winner = checkWinner(newBoard);
 
-    // Zapisz stan do Firebase
-    db.ref('games/' + gameId).update({
-      board: boardState,
-      turn: playerSymbol === 'X' ? 'O' : 'X',
-      winner: winner || null
-    });
-  }
+  db.ref('games/' + gameId).update({
+    board: newBoard,
+    turn: playerSymbol === 'X' ? 'O' : 'X',
+    winner: winner || null
+  });
+}
 
   // Nasłuchiwanie zmian w grze
   function listenToGame() {
