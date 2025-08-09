@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html>
 <head>
   <title>Boat Game with Wind Direction</title>
@@ -21,16 +21,16 @@
       height: 50px;
       font-size: 16px;
     }
-#playerSelection button {
-  width: 120px;
-  height: 50px;
-  font-size: 18px;
-  font-weight: bold;
-  margin: 5px;  /* dodaj odstęp między przyciskami */
-}
+    #playerSelection button {
+      width: 120px;
+      height: 50px;
+      font-size: 18px;
+      font-weight: bold;
+      margin: 5px;  /* dodaj odstęp między przyciskami */
+    }
     #playerSelection {
-  margin-bottom: 15px;
-}
+      margin-bottom: 15px;
+    }
     .disabled {
       opacity: 0.5;
       pointer-events: none;
@@ -48,6 +48,11 @@
     #windInfo {
       font-size: 18px;
       font-weight: bold;
+    }
+    #modeInfo {
+      font-weight: bold; 
+      text-align: center; 
+      margin-top: 8px;
     }
   </style>
 </head>
@@ -70,12 +75,14 @@
     <button id="btnUp">↑</button>
     <button id="btnUpRight">↗</button>
     <button id="btnLeft">←</button>
-    <button disabled></button>
+    <button id="btnToggleMode" title="Toggle Move / Change Wind">⟳</button>
     <button id="btnRight">→</button>
     <button id="btnDownLeft">↙</button>
     <button id="btnDown">↓</button>
     <button id="btnDownRight">↘</button>
   </div>
+
+  <p id="modeInfo">Mode: Move</p>
 
   <script>
     const firebaseConfig = {
@@ -92,15 +99,21 @@
     const db = firebase.database();
 
     const SIZE = 8;
-    const directions = ["NW", "NE", "SW", "SE"];
-    const directionSymbols = { 
-      "NW": "↖", "NE": "↗", 
-      "SW": "↙", "SE": "↘" 
+    // directions for initial random wind, can be full 8 later
+    // const directions = ["NW", "NE", "SW", "SE"];
+
+    // Full 8 directions
+    const allDirections = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    const directionSymbolsFull = { 
+      "N": "↑", "NE": "↗", "E": "→", "SE": "↘", 
+      "S": "↓", "SW": "↙", "W": "←", "NW": "↖" 
     };
 
     const gridEl = document.getElementById('grid');
     const turnInfo = document.getElementById('turnInfo');
     const windInfo = document.getElementById('windInfo');
+    const modeInfo = document.getElementById('modeInfo');
+
     const btns = {
       up: document.getElementById('btnUp'),
       down: document.getElementById('btnDown'),
@@ -111,11 +124,15 @@
       downLeft: document.getElementById('btnDownLeft'),
       downRight: document.getElementById('btnDownRight')
     };
+    const btnToggleMode = document.getElementById('btnToggleMode');
 
     let player = null;
+    let mode = "move";  // "move" or "wind"
+    let currentGame = null; // cache last game state for button updates
 
     // Wyłącz ruchowe przyciski na start
     Object.values(btns).forEach(btn => btn.disabled = true);
+    btnToggleMode.disabled = true;
 
     // Referencja do gry w bazie
     const gameRef = db.ref('boatGameWind8x8');
@@ -123,11 +140,13 @@
     // Inicjalizacja gry jeśli nie ma jeszcze w bazie
     gameRef.once('value', snap => {
       if (!snap.exists()) {
+        // random wind 8 directions for start
+        const initialWind = allDirections[Math.floor(Math.random() * allDirections.length)];
         gameRef.set({
-          p1: { row: SIZE - 1, col: 0 },       // SW
-          p2: { row: 0, col: SIZE - 1 },       // NE
+          p1: { row: SIZE - 1, col: 0 },
+          p2: { row: 0, col: SIZE - 1 },
           currentTurn: "player1",
-          wind: directions[Math.floor(Math.random() * directions.length)]
+          wind: initialWind
         });
       }
     });
@@ -169,16 +188,25 @@
       gameRef.once('value', snap => {
         const game = snap.val();
         if (!game) return;
-        updateTurnButtons(game);
+        updateTurnButtonsCache(game);
       });
     }
 
-    // Funkcja włączająca/wyłączająca przyciski wg tury
-    function updateTurnButtons(game) {
+    // Update toggle button and mode info UI
+    function updateModeUI() {
+      modeInfo.textContent = `Mode: ${mode === "move" ? "Move" : "Change Wind"}`;
+      btnToggleMode.style.backgroundColor = (mode === "wind") ? "#ccf" : "";
+    }
+
+    // Funkcja włączająca/wyłączająca przyciski wg tury i trybu
+    function updateTurnButtonsCache(game) {
+      currentGame = game;
       const myTurn = (game.currentTurn === player);
       Object.values(btns).forEach(btn => {
         btn.disabled = !myTurn;
       });
+      btnToggleMode.disabled = !myTurn; // toggle always enabled if it's player's turn
+      updateModeUI();
       turnInfo.textContent = `Current turn: ${game.currentTurn} — You are ${player}`;
     }
 
@@ -186,66 +214,97 @@
     gameRef.on('value', snap => {
       const game = snap.val();
       if (!game) return;
+      currentGame = game;
       drawGrid(game);
-      windInfo.textContent = `Wind: ${game.wind} ${directionSymbols[game.wind]}`;
+      windInfo.textContent = `Wind: ${game.wind} ${directionSymbolsFull[game.wind] || "?"}`;
       if (player) {
-        updateTurnButtons(game);
+        updateTurnButtonsCache(game);
       }
     });
+
+    // Toggle mode button click
+    btnToggleMode.onclick = () => {
+      mode = (mode === "move") ? "wind" : "move";
+      updateModeUI();
+      updateTurnButtonsCache(currentGame);
+    };
 
     // Wrapowanie ruchu na planszy (jak na torusie)
     function wrap(value) {
       return (value + SIZE) % SIZE;
     }
 
-    // Funkcja ruchu gracza
-    function makeMove(deltaRow, deltaCol) {
-      gameRef.transaction(game => {
-        if (!game) return game;
-        if (game.currentTurn !== player) return game;
+    // Obsługa ruchu lub zmiany wiatru w zależności od trybu
+    function handleAction(deltaRow, deltaCol) {
+      if (!player || !currentGame) return;
+      if (currentGame.currentTurn !== player) return;
 
-        if (player === "player1") {
-          game.p1.row = wrap(game.p1.row + deltaRow);
-          game.p1.col = wrap(game.p1.col + deltaCol);
-        } else {
-          game.p2.row = wrap(game.p2.row + deltaRow);
-          game.p2.col = wrap(game.p2.col + deltaCol);
+      if (mode === "move") {
+        // RUCH
+        gameRef.transaction(game => {
+          if (!game) return game;
+          if (game.currentTurn !== player) return game;
+
+          if (player === "player1") {
+            game.p1.row = wrap(game.p1.row + deltaRow);
+            game.p1.col = wrap(game.p1.col + deltaCol);
+          } else {
+            game.p2.row = wrap(game.p2.row + deltaRow);
+            game.p2.col = wrap(game.p2.col + deltaCol);
+          }
+
+          game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+          return game;
+        });
+      } else {
+        // ZMIANA WIATRU
+        let vert = deltaRow === -1 ? "N" : deltaRow === 1 ? "S" : "";
+        let horiz = deltaCol === -1 ? "W" : deltaCol === 1 ? "E" : "";
+        const newWind = vert + horiz;
+
+        if (!allDirections.includes(newWind)) {
+          console.warn("Invalid wind direction selected:", newWind);
+          return; // ignore invalid (like 0,0)
         }
 
-        game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
-        return game;
+        gameRef.transaction(game => {
+          if (!game) return game;
+          if (game.currentTurn !== player) return game;
+
+          game.wind = newWind;
+          game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+          return game;
+        });
+      }
+    }
+
+    // Przypisanie obsługi kliknięć do przycisków, teraz obsługiwane przez handleAction
+    btns.up.onclick = () => handleAction(-1, 0);
+    btns.down.onclick = () => handleAction(1, 0);
+    btns.left.onclick = () => handleAction(0, -1);
+    btns.right.onclick = () => handleAction(0, 1);
+    btns.upLeft.onclick = () => handleAction(-1, -1);
+    btns.upRight.onclick = () => handleAction(-1, 1);
+    btns.downLeft.onclick = () => handleAction(1, -1);
+    btns.downRight.onclick = () => handleAction(1, 1);
+
+    // Funkcja resetująca grę w bazie
+    function resetGame() {
+      const newWind = allDirections[Math.floor(Math.random() * allDirections.length)];
+      return gameRef.set({
+        p1: { row: SIZE - 1, col: 0 },
+        p2: { row: 0, col: SIZE - 1 },
+        currentTurn: "player1",
+        wind: newWind
       });
     }
 
-    // Przypisanie obsługi kliknięć do przycisków ruchu
-    btns.up.onclick = () => makeMove(-1, 0);
-    btns.down.onclick = () => makeMove(1, 0);
-    btns.left.onclick = () => makeMove(0, -1);
-    btns.right.onclick = () => makeMove(0, 1);
-    btns.upLeft.onclick = () => makeMove(-1, -1);
-    btns.upRight.onclick = () => makeMove(-1, 1);
-    btns.downLeft.onclick = () => makeMove(1, -1);
-    btns.downRight.onclick = () => makeMove(1, 1);
-
-    // Funkcja resetująca grę w bazie
-function resetGame() {
-  const newWind = Math.random() < 0.5 ? "NW" : "SE"; // losowy wiatr tylko NW lub SE
-  return gameRef.set({
-    p1: { row: SIZE - 1, col: 0 },
-    p2: { row: 0, col: SIZE - 1 },
-    currentTurn: "player1",
-    wind: newWind
-  });
-}
-
-// Obsługa kliknięcia resetu
-document.getElementById('btnResetGame').onclick = () => {
-  resetGame()
-    .then(() => console.log('Gra została zresetowana'))
-    .catch(err => console.error('Błąd resetu gry:', err));
-};
+    // Obsługa kliknięcia resetu
+    document.getElementById('btnResetGame').onclick = () => {
+      resetGame()
+        .then(() => console.log('Gra została zresetowana'))
+        .catch(err => console.error('Błąd resetu gry:', err));
+    };
   </script>
 </body>
 </html>
-
-
