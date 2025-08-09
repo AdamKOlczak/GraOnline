@@ -4,10 +4,13 @@ import { ref, onValue, update, get, set } from "https://www.gstatic.com/firebase
 let unsubscribe = null;
 
 export function listenToGame(db, gameId, onUpdate) {
-  if (unsubscribe) {
-    unsubscribe();  // odsubskrybuj poprzedni listener
-    unsubscribe = null;
-  }
+  const gameRef = ref(db, 'games/' + gameId);
+  const unsubscribe = onValue(gameRef, snapshot => {
+    const data = snapshot.val();
+    onUpdate(data);
+  });
+  return unsubscribe;
+}
 
   const gameRef = ref(db, 'games/' + gameId);
   unsubscribe = onValue(gameRef, snapshot => {
