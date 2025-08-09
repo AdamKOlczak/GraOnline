@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Realtime Grid Test</title>
+  <title>Turn-based Grid</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
@@ -17,15 +17,23 @@
     }
     button {
       margin: 5px;
+      padding: 5px 10px;
+    }
+    .disabled {
+      opacity: 0.5;
+      pointer-events: none;
     }
   </style>
 </head>
 <body>
-  <h2>Realtime 3×3 Grid</h2>
+  <h2>Turn-based 3×3 Grid</h2>
+  <p id="turnInfo"></p>
   <table id="grid"></table>
   <div>
     <button id="btnUp">Up</button>
     <button id="btnDown">Down</button>
+    <button id="btnLeft">Left</button>
+    <button id="btnRight">Right</button>
   </div>
 
   <script>
@@ -43,10 +51,31 @@
     const db = firebase.database();
 
     const gridEl = document.getElementById('grid');
-    const btnUp = document.getElementById('btnUp');
-    const btnDown = document.getElementById('btnDown');
+    const turnInfo = document.getElementById('turnInfo');
+    const btns = {
+      up: document.getElementById('btnUp'),
+      down: document.getElementById('btnDown'),
+      left: document.getElementById('btnLeft'),
+      right: document.getElementById('btnRight')
+    };
 
-    // Create a 3×3 grid
+    // Ask player identity
+    const player = prompt("Enter your player name (player1 or player2):").trim().toLowerCase();
+
+    const gameRef = db.ref('turnGridGame');
+
+    // Initialize if empty
+    gameRef.once('value', snap => {
+      if (!snap.exists()) {
+        gameRef.set({
+          row: 1,
+          col: 1,
+          currentTurn: "player1"
+        });
+      }
+    });
+
+    // Draw grid
     function drawGrid(row, col) {
       gridEl.innerHTML = '';
       for (let r = 0; r < 3; r++) {
@@ -60,35 +89,42 @@
       }
     }
 
-    const posRef = db.ref('gridPos');
+    // Listen for game updates
+    gameRef.on('value', snap => {
+      const game = snap.val();
+      drawGrid(game.row, game.col);
+      turnInfo.textContent = `Current turn: ${game.currentTurn}`;
+      const myTurn = (game.currentTurn === player);
 
-    // Initialize if empty
-    posRef.once('value', snap => {
-      if (!snap.exists()) {
-        posRef.set({ row: 1, col: 1 }); // start center
-      }
+      // Enable/disable buttons
+      Object.values(btns).forEach(btn => {
+        if (myTurn) {
+          btn.classList.remove('disabled');
+        } else {
+          btn.classList.add('disabled');
+        }
+      });
     });
 
-    // Listen for position updates
-    posRef.on('value', snap => {
-      const { row, col } = snap.val();
-      drawGrid(row, col);
-    });
+    function makeMove(deltaRow, deltaCol) {
+      gameRef.transaction(game => {
+        if (!game) return game;
+        if (game.currentTurn !== player) return game; // Not your turn
 
-    // Move up/down within bounds
-    btnUp.onclick = () => {
-      posRef.transaction(pos => {
-        if (!pos) return { row: 1, col: 1 };
-        return { row: Math.max(0, pos.row - 1), col: pos.col };
-      });
-    };
+        // Move within bounds
+        game.row = Math.max(0, Math.min(2, game.row + deltaRow));
+        game.col = Math.max(0, Math.min(2, game.col + deltaCol));
 
-    btnDown.onclick = () => {
-      posRef.transaction(pos => {
-        if (!pos) return { row: 1, col: 1 };
-        return { row: Math.min(2, pos.row + 1), col: pos.col };
+        // Switch turn
+        game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+        return game;
       });
-    };
+    }
+
+    btns.up.onclick = () => makeMove(-1, 0);
+    btns.down.onclick = () => makeMove(1, 0);
+    btns.left.onclick = () => makeMove(0, -1);
+    btns.right.onclick = () => makeMove(0, 1);
   </script>
 </body>
 </html>
