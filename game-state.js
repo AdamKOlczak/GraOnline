@@ -1,8 +1,6 @@
 // game-state.js
 import { ref, onValue, update, get, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-let unsubscribe = null;
-
 export function listenToGame(db, gameId, onUpdate) {
   const gameRef = ref(db, 'games/' + gameId);
   const unsubscribe = onValue(gameRef, snapshot => {
