@@ -44,7 +44,11 @@
 <br/><br/>
 <button id="btnJoinP1">Dołącz jako Player1 (Czerwony)</button>
 <button id="btnJoinP2">Dołącz jako Player2 (Zielony)</button>
-
+<br/><br/>
+<label>Wpisz kod gry:</label>
+<input type="text" id="gameCodeInput" maxlength="6" style="text-transform: uppercase;"/>
+<button id="btnJoinGame">Dołącz do gry</button>
+  
 <div id="status">Kliknij "Nowa gra" lub dołącz do gry</div>
 
 <div id="grid"></div>
@@ -339,7 +343,31 @@
   btnJoinP2.disabled = true;
 
   // Optional: add input to join existing game by ID (not included here, can add later)
+
+  const gameCodeInput = document.getElementById('gameCodeInput');
+const btnJoinGame = document.getElementById('btnJoinGame');
+
+btnJoinGame.onclick = () => {
+  const id = gameCodeInput.value.trim().toUpperCase();
+  if (!id) {
+    alert("Wpisz kod gry");
+    return;
+  }
+  // Sprawdź, czy gra istnieje
+  db.ref('games/' + id).once('value').then(snapshot => {
+    if (!snapshot.exists()) {
+      alert("Gra o takim kodzie nie istnieje");
+      return;
+    }
+    gameId = id;
+    player = null;
+    listenToGame(gameId);
+    updateUI();
+    log(`Dołączono do gry ${gameId}, wybierz swoją rolę`);
+  });
+};
 </script>
 
 </body>
 </html>
+
