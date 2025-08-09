@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Turn-based 8×8 Grid with Diagonals</title>
+  <title>Turn-based 8×8 Grid with Wrap-Around</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
@@ -28,7 +28,6 @@
     .p1 { color: red; font-weight: bold; }
     .p2 { color: blue; font-weight: bold; }
 
-    /* Clock-style control panel */
     .controls {
       display: grid;
       grid-template-columns: 50px 50px 50px;
@@ -40,7 +39,7 @@
   </style>
 </head>
 <body>
-  <h2>Turn-based 8×8 Grid with Diagonals</h2>
+  <h2>Turn-based 8×8 Grid with Wrap-Around</h2>
   <p id="turnInfo"></p>
   <table id="grid"></table>
 
@@ -49,7 +48,7 @@
     <button id="btnUp">↑</button>
     <button id="btnUpRight">↗</button>
     <button id="btnLeft">←</button>
-    <button disabled></button> <!-- Empty center -->
+    <button disabled></button>
     <button id="btnRight">→</button>
     <button id="btnDownLeft">↙</button>
     <button id="btnDown">↓</button>
@@ -70,6 +69,7 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    const SIZE = 8;
     const gridEl = document.getElementById('grid');
     const turnInfo = document.getElementById('turnInfo');
     const btns = {
@@ -84,14 +84,13 @@
     };
 
     const player = prompt("Enter your player name (player1 or player2):").trim().toLowerCase();
-    const gameRef = db.ref('turnGridGame8x8Diagonals');
+    const gameRef = db.ref('turnGridGame8x8Wrap');
 
-    // Initialize if empty
     gameRef.once('value', snap => {
       if (!snap.exists()) {
         gameRef.set({
           p1: { row: 0, col: 0 },
-          p2: { row: 7, col: 7 },
+          p2: { row: SIZE - 1, col: SIZE - 1 },
           currentTurn: "player1"
         });
       }
@@ -99,9 +98,9 @@
 
     function drawGrid(game) {
       gridEl.innerHTML = '';
-      for (let r = 0; r < 8; r++) {
+      for (let r = 0; r < SIZE; r++) {
         const tr = document.createElement('tr');
-        for (let c = 0; c < 8; c++) {
+        for (let c = 0; c < SIZE; c++) {
           const td = document.createElement('td');
           if (r === game.p1.row && c === game.p1.col) {
             td.textContent = 'X1';
@@ -118,6 +117,7 @@
 
     gameRef.on('value', snap => {
       const game = snap.val();
+      if (!game) return;
       drawGrid(game);
       turnInfo.textContent = `Current turn: ${game.currentTurn}`;
       const myTurn = (game.currentTurn === player);
@@ -126,17 +126,21 @@
       });
     });
 
+    function wrap(value) {
+      return (value + SIZE) % SIZE;
+    }
+
     function makeMove(deltaRow, deltaCol) {
       gameRef.transaction(game => {
         if (!game) return game;
         if (game.currentTurn !== player) return game;
 
         if (player === "player1") {
-          game.p1.row = Math.max(0, Math.min(7, game.p1.row + deltaRow));
-          game.p1.col = Math.max(0, Math.min(7, game.p1.col + deltaCol));
+          game.p1.row = wrap(game.p1.row + deltaRow);
+          game.p1.col = wrap(game.p1.col + deltaCol);
         } else {
-          game.p2.row = Math.max(0, Math.min(7, game.p2.row + deltaRow));
-          game.p2.col = Math.max(0, Math.min(7, game.p2.col + deltaCol));
+          game.p2.row = wrap(game.p2.row + deltaRow);
+          game.p2.col = wrap(game.p2.col + deltaCol);
         }
 
         game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
