@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Turn-based Grid</title>
+  <title>Turn-based 8×8 Grid</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <style>
@@ -9,11 +9,11 @@
       border-collapse: collapse;
     }
     td {
-      width: 50px;
-      height: 50px;
+      width: 40px;
+      height: 40px;
       border: 1px solid black;
       text-align: center;
-      font-size: 24px;
+      font-size: 18px;
     }
     button {
       margin: 5px;
@@ -23,10 +23,12 @@
       opacity: 0.5;
       pointer-events: none;
     }
+    .p1 { color: red; font-weight: bold; }
+    .p2 { color: blue; font-weight: bold; }
   </style>
 </head>
 <body>
-  <h2>Turn-based 3×3 Grid</h2>
+  <h2>Turn-based 8×8 Grid</h2>
   <p id="turnInfo"></p>
   <table id="grid"></table>
   <div>
@@ -59,63 +61,62 @@
       right: document.getElementById('btnRight')
     };
 
-    // Ask player identity
     const player = prompt("Enter your player name (player1 or player2):").trim().toLowerCase();
-
-    const gameRef = db.ref('turnGridGame');
+    const gameRef = db.ref('turnGridGame8x8');
 
     // Initialize if empty
     gameRef.once('value', snap => {
       if (!snap.exists()) {
         gameRef.set({
-          row: 1,
-          col: 1,
+          p1: { row: 0, col: 0 },
+          p2: { row: 7, col: 7 },
           currentTurn: "player1"
         });
       }
     });
 
-    // Draw grid
-    function drawGrid(row, col) {
+    function drawGrid(game) {
       gridEl.innerHTML = '';
-      for (let r = 0; r < 3; r++) {
+      for (let r = 0; r < 8; r++) {
         const tr = document.createElement('tr');
-        for (let c = 0; c < 3; c++) {
+        for (let c = 0; c < 8; c++) {
           const td = document.createElement('td');
-          if (r === row && c === col) td.textContent = 'X';
+          if (r === game.p1.row && c === game.p1.col) {
+            td.textContent = 'X1';
+            td.className = 'p1';
+          } else if (r === game.p2.row && c === game.p2.col) {
+            td.textContent = 'X2';
+            td.className = 'p2';
+          }
           tr.appendChild(td);
         }
         gridEl.appendChild(tr);
       }
     }
 
-    // Listen for game updates
     gameRef.on('value', snap => {
       const game = snap.val();
-      drawGrid(game.row, game.col);
+      drawGrid(game);
       turnInfo.textContent = `Current turn: ${game.currentTurn}`;
       const myTurn = (game.currentTurn === player);
-
-      // Enable/disable buttons
       Object.values(btns).forEach(btn => {
-        if (myTurn) {
-          btn.classList.remove('disabled');
-        } else {
-          btn.classList.add('disabled');
-        }
+        btn.classList.toggle('disabled', !myTurn);
       });
     });
 
     function makeMove(deltaRow, deltaCol) {
       gameRef.transaction(game => {
         if (!game) return game;
-        if (game.currentTurn !== player) return game; // Not your turn
+        if (game.currentTurn !== player) return game;
 
-        // Move within bounds
-        game.row = Math.max(0, Math.min(2, game.row + deltaRow));
-        game.col = Math.max(0, Math.min(2, game.col + deltaCol));
+        if (player === "player1") {
+          game.p1.row = Math.max(0, Math.min(7, game.p1.row + deltaRow));
+          game.p1.col = Math.max(0, Math.min(7, game.p1.col + deltaCol));
+        } else {
+          game.p2.row = Math.max(0, Math.min(7, game.p2.row + deltaRow));
+          game.p2.col = Math.max(0, Math.min(7, game.p2.col + deltaCol));
+        }
 
-        // Switch turn
         game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
         return game;
       });
