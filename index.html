@@ -1,17 +1,34 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Firebase Realtime Test</title>
+  <title>Realtime Grid Test</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <style>
+    table {
+      border-collapse: collapse;
+    }
+    td {
+      width: 50px;
+      height: 50px;
+      border: 1px solid black;
+      text-align: center;
+      font-size: 24px;
+    }
+    button {
+      margin: 5px;
+    }
+  </style>
 </head>
 <body>
-  <h2>Realtime Counter Test</h2>
-  <div>Counter value: <span id="counter">0</span></div>
-  <button id="btnIncrement">Increment</button>
+  <h2>Realtime 3×3 Grid</h2>
+  <table id="grid"></table>
+  <div>
+    <button id="btnUp">Up</button>
+    <button id="btnDown">Down</button>
+  </div>
 
   <script>
-    // Your Firebase config here:
     const firebaseConfig = {
       apiKey: "AIzaSyATOiD3Hp077WyGNi50KFTCxx_yrmuyxf0",
       authDomain: "gratest-cfc14.firebaseapp.com",
@@ -22,25 +39,54 @@
       appId: "1:26328738989:web:18484211ec540a9cf66a24"
     };
 
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const counterEl = document.getElementById('counter');
-    const btnIncrement = document.getElementById('btnIncrement');
+    const gridEl = document.getElementById('grid');
+    const btnUp = document.getElementById('btnUp');
+    const btnDown = document.getElementById('btnDown');
 
-    const counterRef = db.ref('testCounter');
+    // Create a 3×3 grid
+    function drawGrid(row, col) {
+      gridEl.innerHTML = '';
+      for (let r = 0; r < 3; r++) {
+        const tr = document.createElement('tr');
+        for (let c = 0; c < 3; c++) {
+          const td = document.createElement('td');
+          if (r === row && c === col) td.textContent = 'X';
+          tr.appendChild(td);
+        }
+        gridEl.appendChild(tr);
+      }
+    }
 
-    // Listen to realtime changes
-    counterRef.on('value', snapshot => {
-      const val = snapshot.val();
-      counterEl.textContent = val !== null ? val : 0;
+    const posRef = db.ref('gridPos');
+
+    // Initialize if empty
+    posRef.once('value', snap => {
+      if (!snap.exists()) {
+        posRef.set({ row: 1, col: 1 }); // start center
+      }
     });
 
-    // Increment on button click
-    btnIncrement.onclick = () => {
-      counterRef.transaction(current => {
-        return (current || 0) + 1;
+    // Listen for position updates
+    posRef.on('value', snap => {
+      const { row, col } = snap.val();
+      drawGrid(row, col);
+    });
+
+    // Move up/down within bounds
+    btnUp.onclick = () => {
+      posRef.transaction(pos => {
+        if (!pos) return { row: 1, col: 1 };
+        return { row: Math.max(0, pos.row - 1), col: pos.col };
+      });
+    };
+
+    btnDown.onclick = () => {
+      posRef.transaction(pos => {
+        if (!pos) return { row: 1, col: 1 };
+        return { row: Math.min(2, pos.row + 1), col: pos.col };
       });
     };
   </script>
