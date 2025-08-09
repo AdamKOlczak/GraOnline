@@ -2,15 +2,24 @@
 <html lang="pl">
 <head>
   <meta charset="UTF-8" />
-  <title>Przycisk na zmianę z Firebase</title>
+  <title>Przycisk na zmianę - multiplayer z wyborem gracza</title>
   <style>
     body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
     #colorButton {
       width: 150px; height: 150px; font-size: 24px; border: none; cursor: pointer;
-      color: white; border-radius: 12px;
+      color: white; border-radius: 12px; margin-top: 20px;
     }
     #status {
       margin-top: 20px; font-size: 18px;
+    }
+    #choosePlayer {
+      margin-top: 30px;
+    }
+    button.playerBtn {
+      padding: 10px 20px;
+      font-size: 18px;
+      margin: 0 10px;
+      cursor: pointer;
     }
   </style>
 
@@ -22,9 +31,14 @@
 
   <h1>Przycisk na zmianę - multiplayer</h1>
 
+  <div id="choosePlayer">
+    <button class="playerBtn" id="btnPlayer1">Dołącz jako Gracz 1 (Czerwony)</button>
+    <button class="playerBtn" id="btnPlayer2">Dołącz jako Gracz 2 (Zielony)</button>
+  </div>
+
   <button id="colorButton" disabled>Ładuję...</button>
 
-  <div id="status">Ładowanie...</div>
+  <div id="status">Wybierz gracza, aby rozpocząć</div>
 
   <script>
     // Konfiguracja Firebase
@@ -42,31 +56,34 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    const btnPlayer1 = document.getElementById('btnPlayer1');
+    const btnPlayer2 = document.getElementById('btnPlayer2');
     const colorButton = document.getElementById('colorButton');
     const statusEl = document.getElementById('status');
+    const choosePlayerDiv = document.getElementById('choosePlayer');
 
-    // Prosty identyfikator gracza (na potrzeby demo)
-    // Różni się przy odświeżeniu strony
-    const playerId = Math.random().toString(36).substring(2, 7);
+    let playerId = null;  // "player1" lub "player2"
+    let currentColor = null;  // 'red' lub 'green'
+    let currentTurn = null;   // 'player1' lub 'player2'
 
-    // Referencja do stanu gry w bazie
+    // Referencja do stanu gry
     const gameRef = db.ref('simpleGame');
 
-    // Lokalny stan
-    let currentColor = null;  // 'red' lub 'green'
-    let currentTurn = null;   // playerId, kto ma teraz turę
+    // Inicjalizacja gry (jeśli nie ma stanu)
+    function initGameIfNeeded() {
+      gameRef.once('value').then(snapshot => {
+        if (!snapshot.exists()) {
+          gameRef.set({
+            color: 'red',      // start z czerwonym
+            turn: 'player1'    // start tury player1
+          });
+        }
+      });
+    }
 
-    // Inicjalizacja gry (tylko jeśli nie ma w bazie stanu)
-    gameRef.once('value').then(snapshot => {
-      if (!snapshot.exists()) {
-        gameRef.set({
-          color: 'red',      // start z czerwonym
-          turn: null         // na start nikt nie ma tury
-        });
-      }
-    });
+    initGameIfNeeded();
 
-    // Nasłuchiwanie zmian stanu gry
+    // Nasłuchiwanie zmian stanu
     gameRef.on('value', snapshot => {
       const data = snapshot.val();
       if (!data) return;
@@ -77,13 +94,14 @@
       // Ustaw kolor przycisku
       colorButton.style.backgroundColor = currentColor;
 
-      // Ustaw status i dostępność przycisku
+      if (!playerId) {
+        statusEl.textContent = "Wybierz gracza, aby rozpocząć";
+        colorButton.disabled = true;
+        return;
+      }
+
       if (currentTurn === playerId) {
         statusEl.textContent = "Twoja tura! Kliknij przycisk";
-        colorButton.disabled = false;
-      } else if (currentTurn === null) {
-        // Pierwszy klik, tura nie została przydzielona
-        statusEl.textContent = "Naciśnij przycisk, by zacząć (tura przejdzie do Ciebie)";
         colorButton.disabled = false;
       } else {
         statusEl.textContent = `Tura przeciwnika (${currentTurn})`;
@@ -93,19 +111,32 @@
 
     // Kliknięcie przycisku
     colorButton.addEventListener('click', () => {
-      // Jeśli nie twoja tura i nie start, ignoruj
-      if (currentTurn !== playerId && currentTurn !== null) return;
+      if (currentTurn !== playerId) return;
 
-      // Zmiana koloru
+      // Zmiana koloru: czerwony = player1, zielony = player2
       const newColor = (currentColor === 'red') ? 'green' : 'red';
+      const nextTurn = (currentTurn === 'player1') ? 'player2' : 'player1';
 
-      // Aktualizacja w bazie:
-      // Kolor się zmienia,
-      // Tura idzie do drugiego gracza albo jeśli null to przyznaj ją graczowi
       gameRef.update({
         color: newColor,
-        turn: (currentTurn === playerId) ? null : playerId
+        turn: nextTurn
       });
+    });
+
+    // Dołączanie jako player1
+    btnPlayer1.addEventListener('click', () => {
+      playerId = 'player1';
+      choosePlayerDiv.style.display = 'none';
+      colorButton.disabled = true;
+      statusEl.textContent = 'Dołączyłeś jako Gracz 1 (Czerwony). Czekaj na swoją turę...';
+    });
+
+    // Dołączanie jako player2
+    btnPlayer2.addEventListener('click', () => {
+      playerId = 'player2';
+      choosePlayerDiv.style.display = 'none';
+      colorButton.disabled = true;
+      statusEl.textContent = 'Dołączyłeś jako Gracz 2 (Zielony). Czekaj na swoją turę...';
     });
   </script>
 
