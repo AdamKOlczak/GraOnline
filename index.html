@@ -30,15 +30,23 @@
 
 <script>
   // --------------------- TU WPISZ KONFIGURACJĘ FIREBASE ---------------------
+
   const firebaseConfig = {
-    apiKey: "TWOJE_API_KEY",
-    authDomain: "TWOJ_PROJEKT.firebaseapp.com",
-    databaseURL: "https://TWOJ_PROJEKT-default-rtdb.firebaseio.com",
-    projectId: "TWOJ_PROJEKT",
-    storageBucket: "TWOJ_PROJEKT.appspot.com",
-    messagingSenderId: "XXX",
-    appId: "XXX"
+    apiKey: "AIzaSyATOiD3Hp077WyGNi50KFTCxx_yrmuyxf0",
+    authDomain: "gratest-cfc14.firebaseapp.com",
+    databaseURL: "https://gratest-cfc14-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId: "gratest-cfc14",
+    storageBucket: "gratest-cfc14.firebasestorage.app",
+    messagingSenderId: "26328738989",
+    appId: "1:26328738989:web:18484211ec540a9cf66a24"
   };
+
+  // Initialize Firebase
+  const app = firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
+  // dalej piszesz kod do pracy z bazą
+
   // ---------------------------------------------------------------------------
 
   // Inicjalizacja Firebase
@@ -188,6 +196,14 @@
   });
 
 </script>
+
+
+<!-- Firebase App -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js"></script>
+<!-- Firebase Database -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js"></script>
+
+
 
 </body>
 </html>
