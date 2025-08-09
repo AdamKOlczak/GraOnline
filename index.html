@@ -62,6 +62,7 @@
   
   <p id="windInfo"></p>
   <p id="turnInfo"></p>
+  <button id="btnResetGame">Nowa gra</button>
   <table id="grid"></table>
 
   <div class="controls">
@@ -225,7 +226,26 @@
     btns.upRight.onclick = () => makeMove(-1, 1);
     btns.downLeft.onclick = () => makeMove(1, -1);
     btns.downRight.onclick = () => makeMove(1, 1);
+
+    // Funkcja resetująca grę w bazie
+function resetGame() {
+  const newWind = Math.random() < 0.5 ? "NW" : "SE"; // losowy wiatr tylko NW lub SE
+  return gameRef.set({
+    p1: { row: SIZE - 1, col: 0 },
+    p2: { row: 0, col: SIZE - 1 },
+    currentTurn: "player1",
+    wind: newWind
+  });
+}
+
+// Obsługa kliknięcia resetu
+document.getElementById('btnResetGame').onclick = () => {
+  resetGame()
+    .then(() => console.log('Gra została zresetowana'))
+    .catch(err => console.error('Błąd resetu gry:', err));
+};
   </script>
 </body>
 </html>
+
 
