@@ -1,40 +1,47 @@
 // game-state.js
-import { ref, onValue, update, get, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { db } from './firebase-config.js';
+import { ref, onValue, runTransaction, get, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
-export function listenToGame(db, gameId, onUpdate) {
-  const gameRef = ref(db, 'games/' + gameId);
-  const unsubscribe = onValue(gameRef, snapshot => {
-    const data = snapshot.val();
-    onUpdate(data);
+const SIZE = 8;
+const gameRef = ref(db, 'boatGameWind8x8');
+
+export function initializeGameIfNeeded() {
+  get(gameRef).then(snap => {
+    if (!snap.exists()) {
+      set(gameRef, {
+        p1: { row: SIZE - 1, col: 0 }, // SW
+        p2: { row: 0, col: SIZE - 1 }, // NE
+        currentTurn: "player1",
+        wind: Math.random() < 0.5 ? "NW" : "SE"  // Only NW or SE
+      });
+    }
   });
-  return unsubscribe;
 }
 
-  const gameRef = ref(db, 'games/' + gameId);
-  unsubscribe = onValue(gameRef, snapshot => {
-    const data = snapshot.val();
-    onUpdate(data);
+export function listenToGame(onUpdate) {
+  return onValue(gameRef, snapshot => {
+    onUpdate(snapshot.val());
   });
 }
 
-export function makeMove(db, gameId, newState) {
-  const gameRef = ref(db, 'games/' + gameId);
-  return update(gameRef, newState);
+function wrap(value) {
+  return (value + SIZE) % SIZE;
 }
 
-export function createGame(db, gameId, initialState) {
-  const gameRef = ref(db, 'games/' + gameId);
-  return set(gameRef, initialState);
-}
+export function makeMove(player, deltaRow, deltaCol) {
+  return runTransaction(gameRef, game => {
+    if (!game) return game;
+    if (game.currentTurn !== player) return game;
 
-export function getGame(db, gameId) {
-  const gameRef = ref(db, 'games/' + gameId);
-  return get(gameRef);
-}
+    if (player === "player1") {
+      game.p1.row = wrap(game.p1.row + deltaRow);
+      game.p1.col = wrap(game.p1.col + deltaCol);
+    } else {
+      game.p2.row = wrap(game.p2.row + deltaRow);
+      game.p2.col = wrap(game.p2.col + deltaCol);
+    }
 
-export function stopListening() {
-  if (unsubscribe) {
-    unsubscribe();
-    unsubscribe = null;
-  }
+    game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+    return game;
+  });
 }
