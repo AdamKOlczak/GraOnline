@@ -154,24 +154,25 @@
     });
 
     // Join as player
-    joinP1Btn.onclick = () => {
-      gameRef.transaction(game => {
-        if (!game.p1) {
-          game.p1 = true;
-          player = "player1";
-        }
-        return game;
-      });
-    };
-    joinP2Btn.onclick = () => {
-      gameRef.transaction(game => {
-        if (!game.p2) {
-          game.p2 = true;
-          player = "player2";
-        }
-        return game;
-      });
-    };
+joinP1Btn.onclick = () => {
+  gameRef.get().then(snap => {
+    const game = snap.val();
+    if (!game.p1) {
+      player = "player1"; // store locally immediately
+      gameRef.update({ p1: true });
+    }
+  });
+};
+
+joinP2Btn.onclick = () => {
+  gameRef.get().then(snap => {
+    const game = snap.val();
+    if (!game.p2) {
+      player = "player2"; // store locally immediately
+      gameRef.update({ p2: true });
+    }
+  });
+};
 
     function wrap(value) {
       return (value + SIZE) % SIZE;
@@ -204,3 +205,4 @@
   </script>
 </body>
 </html>
+
