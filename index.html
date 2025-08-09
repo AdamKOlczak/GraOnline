@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kółko i krzyżyk multiplayer</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; }
+    #board { display: grid; grid-template-columns: repeat(3, 100px); gap: 5px; margin: 20px auto; }
+    .cell { width: 100px; height: 100px; background: #eee; font-size: 72px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    .cell.disabled { cursor: default; color: #aaa; }
+    #status { margin-top: 20px; font-size: 20px; }
+    #gameIdInput { width: 120px; font-size: 16px; }
+  </style>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+  <h1>Kółko i krzyżyk online</h1>
+
+  <button id="btnNewGame">Nowa gra</button>
+  <input type="text" id="gameIdInput" placeholder="Kod gry" maxlength="6" />
+  <button id="btnJoinGame">Dołącz do gry</button>
+
+  <div id="status">Wpisz kod gry lub zacznij nową</div>
+
+  <div id="board"></div>
+
+<script>
+  // --------------------- TU WPISZ KONFIGURACJĘ FIREBASE ---------------------
+  const firebaseConfig = {
+    apiKey: "TWOJE_API_KEY",
+    authDomain: "TWOJ_PROJEKT.firebaseapp.com",
+    databaseURL: "https://TWOJ_PROJEKT-default-rtdb.firebaseio.com",
+    projectId: "TWOJ_PROJEKT",
+    storageBucket: "TWOJ_PROJEKT.appspot.com",
+    messagingSenderId: "XXX",
+    appId: "XXX"
+  };
+  // ---------------------------------------------------------------------------
+
+  // Inicjalizacja Firebase
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // Globalne zmienne
+  let gameId = null;
+  let playerSymbol = null;  // "X" lub "O"
+  let myTurn = false;
+  let boardState = Array(9).fill(null);  // tablica 9 pól planszy
+
+  const boardEl = document.getElementById('board');
+  const statusEl = document.getElementById('status');
+  const btnNewGame = document.getElementById('btnNewGame');
+  const btnJoinGame = document.getElementById('btnJoinGame');
+  const gameIdInput = document.getElementById('gameIdInput');
+
+  // Tworzymy planszę w HTML
+  function createBoard() {
+    boardEl.innerHTML = '';
+    for(let i=0; i<9; i++) {
+      const cell = document.createElement('div');
+      cell.classList.add('cell');
+      cell.dataset.index = i;
+      cell.addEventListener('click', () => makeMove(i));
+      boardEl.appendChild(cell);
+    }
+  }
+
+  createBoard();
+
+  // Generuje losowy 6-znakowy kod gry (litery i cyfry)
+  function generateGameId() {
+    return Math.random().toString(36).substring(2,8).toUpperCase();
+  }
+
+  // Aktualizuj widok planszy
+  function updateBoard() {
+    for(let i=0; i<9; i++) {
+      const cell = boardEl.querySelector(`[data-index="${i}"]`);
+      cell.textContent = boardState[i] || '';
+      if (!myTurn || boardState[i]) {
+        cell.classList.add('disabled');
+      } else {
+        cell.classList.remove('disabled');
+      }
+    }
+  }
+
+  // Sprawdza, czy jest zwycięzca lub remis
+  function checkWinner(board) {
+    const lines = [
+      [0,1,2], [3,4,5], [6,7,8],  // wiersze
+      [0,3,6], [1,4,7], [2,5,8],  // kolumny
+      [0,4,8], [2,4,6]            // przekątne
+    ];
+    for (const [a,b,c] of lines) {
+      if (board[a] && board[a] === board[b] && board[a] === board[c]) {
+        return board[a]; // "X" lub "O"
+      }
+    }
+    if (board.every(cell => cell)) return 'draw';
+    return null;
+  }
+
+  // Ruch gracza — próba zapisania ruchu w bazie
+  function makeMove(i) {
+    if (!myTurn || boardState[i]) return;
+
+    boardState[i] = playerSymbol;
+    const winner = checkWinner(boardState);
+
+    // Zapisz stan do Firebase
+    db.ref('games/' + gameId).update({
+      board: boardState,
+      turn: playerSymbol === 'X' ? 'O' : 'X',
+      winner: winner || null
+    });
+  }
+
+  // Nasłuchiwanie zmian w grze
+  function listenToGame() {
+    db.ref('games/' + gameId).on('value', snapshot => {
+      const data = snapshot.val();
+      if (!data) {
+        statusEl.textContent = 'Gra nie istnieje lub została zakończona.';
+        return;
+      }
+      boardState = data.board || Array(9).fill(null);
+      updateBoard();
+
+      if (data.winner) {
+        if (data.winner === 'draw') {
+          statusEl.textContent = 'Remis! 🎉';
+        } else {
+          statusEl.textContent = data.winner === playerSymbol ? 'Wygrałeś! 🎉' : 'Przegrałeś :(';
+        }
+        myTurn = false;
+      } else {
+        myTurn = (data.turn === playerSymbol);
+        statusEl.textContent = myTurn ? 'Twoja tura!' : 'Tura przeciwnika...';
+      }
+    });
+  }
+
+  // Start nowej gry
+  btnNewGame.addEventListener('click', () => {
+    gameId = generateGameId();
+    playerSymbol = 'X';
+    myTurn = true;
+    boardState = Array(9).fill(null);
+
+    db.ref('games/' + gameId).set({
+      board: boardState,
+      turn: 'X',
+      winner: null
+    });
+
+    listenToGame();
+
+    statusEl.textContent = `Nowa gra utworzona. Kod gry: ${gameId}. Czekaj na przeciwnika.`;
+  });
+
+  // Dołączanie do gry
+  btnJoinGame.addEventListener('click', () => {
+    const inputId = gameIdInput.value.trim().toUpperCase();
+    if (!inputId) {
+      alert('Podaj kod gry!');
+      return;
+    }
+    db.ref('games/' + inputId).once('value').then(snapshot => {
+      const data = snapshot.val();
+      if (!data) {
+        alert('Nie ma takiej gry!');
+        return;
+      }
+      if (data.turn !== 'X' && data.turn !== 'O') {
+        alert('Gra już zakończona.');
+        return;
+      }
+      gameId = inputId;
+      playerSymbol = 'O';  // Dołączający zawsze O
+      listenToGame();
+      statusEl.textContent = `Dołączyłeś do gry ${gameId}. Tura gracza X.`;
+    });
+  });
+
+</script>
+
+</body>
+</html>
