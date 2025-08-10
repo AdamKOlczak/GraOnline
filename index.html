@@ -1,20 +1,56 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+  <title>Boat Game with Wind Direction</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <meta charset="UTF-8">
   <title>Wind Game</title>
   <style>
-    /* Optional: basic styling for the popup */
-    #wind-popup {
-      transition: opacity 0.2s;
+    table { border-collapse: collapse; margin-top: 10px; }
+    td { width: 40px; height: 40px; border: 1px solid black; text-align: center; font-size: 18px; }
+    button { width: 50px; height: 50px; font-size: 16px; }
+    #playerSelection button { width: 120px; height: 50px; font-size: 18px; font-weight: bold; margin: 5px; }
+    #playerSelection { margin-bottom: 15px; }
+    .disabled { opacity: 0.5; pointer-events: none; }
+    .p1 { color: red; font-weight: bold; }
+    .p2 { color: blue; font-weight: bold; }
+    .controls {
+      display: grid;
+      grid-template-columns: 50px 50px 50px;
+      grid-template-rows: 50px 50px 50px;
+      gap: 5px;
+      justify-content: center;
+      margin-top: 10px;
     }
+    #windInfo { font-size: 18px; font-weight: bold; }
+    #modeInfo { font-weight: bold; text-align: center; margin-top: 8px; }
+    #wind-popup { transition: opacity 0.2s; }
   </style>
 </head>
 <body>
-  <div id="game"></div>
-  <!-- Add your game board, controls, etc. here -->
-
-  <!-- Load your JavaScript files as modules -->
+  <h2>Luźne porty: Puszczanie Wiatrów</h2>
+  <div id="playerSelection">
+    <p>Wybierz gracza:</p>
+    <button id="choosePlayer1">Player 1 (🚤1)</button>
+    <button id="choosePlayer2">Player 2 (🚤2)</button>
+  </div>
+  <p id="windInfo"></p>
+  <p id="turnInfo"></p>
+  <button id="btnResetGame">Nowa gra</button>
+  <table id="grid"></table>
+  <div class="controls">
+    <button id="btnUpLeft">↖</button>
+    <button id="btnUp">↑</button>
+    <button id="btnUpRight">↗</button>
+    <button id="btnLeft">←</button>
+    <button id="btnToggleMode" title="Toggle Move / Change Wind">⟳</button>
+    <button id="btnRight">→</button>
+    <button id="btnDownLeft">↙</button>
+    <button id="btnDown">↓</button>
+    <button id="btnDownRight">↘</button>
+  </div>
+  <p id="modeInfo">Mode: Move</p>
   <script type="module" src="main.js"></script>
 </body>
 </html>
