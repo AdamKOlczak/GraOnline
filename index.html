@@ -376,31 +376,26 @@
       }
     }
 
-function blowWind(game) {
-  if (!game.debris || !game.wind) return;
-  const v = windVectors[game.wind];
-  // Move debris
-  game.debris = game.debris.map(d => ({
-    row: wrap(d.row + v.row),
-    col: wrap(d.col + v.col)
-  }));
-
-  // Detect collision: debris hitting players (KO them, but do not move the player)
-  ["player1", "player2"].forEach(playerKey => {
-    const playerObj = playerKey === "player1" ? game.p1 : game.p2;
-    let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
-    if (debrisIdx !== -1) {
-      const newCell = getRandomUnoccupiedCell(game);
-      game.debris[debrisIdx] = newCell;
-      game[playerKey + "SkipTurn"] = true;
-      // Do NOT move the player!
+    function blowWind(game) {
+      if (!game.debris || !game.wind) return;
+      const v = windVectors[game.wind];
+      game.debris = game.debris.map(d => ({
+        row: wrap(d.row + v.row),
+        col: wrap(d.col + v.col)
+      }));
+      ["player1", "player2"].forEach(playerKey => {
+        const playerObj = playerKey === "player1" ? game.p1 : game.p2;
+        let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
+        if (debrisIdx !== -1) {
+          const newCell = getRandomUnoccupiedCell(game);
+          game.debris[debrisIdx] = newCell;
+          game[playerKey + "SkipTurn"] = true;
+          game[playerKey + "JustKOd"] = true; // <--- NEW
+        }
+      });
+      game.p1PendingWindMove = true;
+      game.p2PendingWindMove = true;
     }
-  });
-
-  // Now require wind move choices from both
-  game.p1PendingWindMove = true;
-  game.p2PendingWindMove = true;
-}
 
     moveWithWindBtn.onclick = function() {
       submitWindMove(true);
@@ -414,16 +409,15 @@ function blowWind(game) {
         if (!game) return game;
         const v = windVectors[game.wind];
         if (player === "player1" && game.p1PendingWindMove) {
-          // Always move with wind if KO'd
-          if (game.player1SkipTurn || moveWithWind) {
+          // Drift with wind only if KO'd previously (not just now)
+          if ((game.player1SkipTurn && !game.player1JustKOd) || moveWithWind) {
             game.p1.row = wrap(game.p1.row + v.row);
             game.p1.col = wrap(game.p1.col + v.col);
           }
           game.p1PendingWindMove = false;
         }
         if (player === "player2" && game.p2PendingWindMove) {
-          // Always move with wind if KO'd
-          if (game.player2SkipTurn || moveWithWind) {
+          if ((game.player2SkipTurn && !game.player2JustKOd) || moveWithWind) {
             game.p2.row = wrap(game.p2.row + v.row);
             game.p2.col = wrap(game.p2.col + v.col);
           }
@@ -433,6 +427,9 @@ function blowWind(game) {
           checkCollisionsAndHandle(game, "player1");
           checkCollisionsAndHandle(game, "player2");
           checkBothPlayersOnSameDebris(game);
+          // Clear JustKOd after both have resolved this wind
+          game.player1JustKOd = false;
+          game.player2JustKOd = false;
         }
         return game;
       });
@@ -550,6 +547,7 @@ function blowWind(game) {
 </script>
 </body>
 </html>
+
 
 
 
