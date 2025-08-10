@@ -1,14 +1,10 @@
 <!DOCTYPE html> 
 <html>
-<!DOCTYPE html>
-<html lang="en">
 <head>
   <title>Boat Game with Wind Direction</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <meta charset="UTF-8">
-  <title>Wind Game</title>
-<style>
+  <style>
     table {
       border-collapse: collapse;
       margin-top: 10px;
@@ -57,14 +53,11 @@
       font-weight: bold; 
       text-align: center; 
       margin-top: 8px;
-    /* Optional: basic styling for the popup */
-    #wind-popup {
-      transition: opacity 0.2s;
-}
-</style>
+    }
+  </style>
 </head>
 <body>
-  <h2>Luźne porty: Puszczanie Wiatrów</h2>
+  <h2>Boat Game with Wind</h2>
   
   <div id="playerSelection">
     <p>Wybierz gracza:</p>
@@ -207,8 +200,6 @@ function drawGrid(game) {
       modeInfo.textContent = `Mode: ${mode === "move" ? "Move" : "Change Wind"}`;
       btnToggleMode.style.backgroundColor = (mode === "wind") ? "#ccf" : "";
     }
-  <div id="game"></div>
-  <!-- Add your game board, controls, etc. here -->
 
     // Updated to reset mode to "move" on turn change to this player
 function updateTurnButtonsCache(game) {
@@ -356,7 +347,6 @@ function resetGame() {
         .catch(err => console.error('Błąd resetu gry:', err));
     };
   </script>
-  <!-- Load your JavaScript files as modules -->
-  <script type="module" src="main.js"></script>
 </body>
 </html>
+
