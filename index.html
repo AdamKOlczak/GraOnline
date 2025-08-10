@@ -183,7 +183,9 @@
           debris: [],
           moveTurnCounter: 0,
           p1PendingWindMove: false,
-          p2PendingWindMove: false
+          p2PendingWindMove: false,
+          player1SkipTurn: false,
+          player2SkipTurn: false
         });
       }
     });
@@ -298,6 +300,52 @@
       return (value + SIZE) % SIZE;
     }
 
+    // ---- RANDOM UNOCCUPIED CELL FOR DEBRIS ----
+    function getRandomUnoccupiedCell(game) {
+      let cell;
+      let attempts = 0;
+      do {
+        cell = {
+          row: Math.floor(Math.random() * SIZE),
+          col: Math.floor(Math.random() * SIZE)
+        };
+        attempts++;
+        if (attempts > 100) break;
+      } while (
+        (cell.row === game.p1.row && cell.col === game.p1.col) ||
+        (cell.row === game.p2.row && cell.col === game.p2.col) ||
+        (game.debris && game.debris.some(d => d.row === cell.row && d.col === cell.col))
+      );
+      return cell;
+    }
+
+    // ---- COLLISION LOGIC ----
+    function checkCollisionsAndHandle(game, playerName) {
+      if (!game.debris) return;
+      let playerObj = playerName === "player1" ? game.p1 : game.p2;
+      let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
+      if (debrisIdx !== -1) {
+        // Relocate this debris
+        const newCell = getRandomUnoccupiedCell(game);
+        game.debris[debrisIdx] = newCell;
+        // Lose a turn: set a skip flag on this player
+        game[playerName + "SkipTurn"] = true;
+      }
+    }
+    function checkBothPlayersOnSameDebris(game) {
+      if (!game.debris) return;
+      if (game.p1.row === game.p2.row && game.p1.col === game.p2.col) {
+        let debrisIdx = game.debris.findIndex(d => d.row === game.p1.row && d.col === game.p1.col);
+        if (debrisIdx !== -1) {
+          // Relocate this debris
+          const newCell = getRandomUnoccupiedCell(game);
+          game.debris[debrisIdx] = newCell;
+          game["player1SkipTurn"] = true;
+          game["player2SkipTurn"] = true;
+        }
+      }
+    }
+
     // ---- WIND BLOWS ----
     function blowWind(game) {
       if (!game.debris || !game.wind) return;
@@ -307,7 +355,7 @@
         row: wrap(d.row + v.row),
         col: wrap(d.col + v.col)
       }));
-      // Now: set both players as pending wind move
+      // Both players must decide wind move
       game.p1PendingWindMove = true;
       game.p2PendingWindMove = true;
     }
@@ -319,7 +367,6 @@
     stayInPlaceBtn.onclick = function() {
       submitWindMove(false);
     };
-
     function submitWindMove(moveWithWind) {
       gameRef.transaction(game => {
         if (!game) return game;
@@ -338,9 +385,11 @@
           }
           game.p2PendingWindMove = false;
         }
-        // After both choices, continue play
+        // After both choices, check for collisions for both players and handle both-on-same-debris case
         if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
-          // Play resumes, nothing special needed here yet
+          checkCollisionsAndHandle(game, "player1");
+          checkCollisionsAndHandle(game, "player2");
+          checkBothPlayersOnSameDebris(game);
         }
         return game;
       });
@@ -353,6 +402,17 @@
       // If wind move pending, block normal action
       if ((player === "player1" && currentGame.p1PendingWindMove) ||
           (player === "player2" && currentGame.p2PendingWindMove)) return;
+      // If player is supposed to skip turn, skip and reset flag
+      if (currentGame[player + "SkipTurn"]) {
+        gameRef.transaction(game => {
+          if (!game) return game;
+          if (game.currentTurn !== player) return game;
+          game[player + "SkipTurn"] = false;
+          game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+          return game;
+        });
+        return;
+      }
 
       if (mode === "move") {
         gameRef.transaction(game => {
@@ -366,6 +426,8 @@
             game.p2.row = wrap(game.p2.row + deltaRow);
             game.p2.col = wrap(game.p2.col + deltaCol);
           }
+          // Check collision after move
+          checkCollisionsAndHandle(game, player);
           // Wind blows every 2 consecutive moves
           game.moveTurnCounter = (game.moveTurnCounter || 0) + 1;
           if (game.moveTurnCounter >= 2) {
@@ -441,7 +503,9 @@
         debris: debris,
         moveTurnCounter: 0,
         p1PendingWindMove: false,
-        p2PendingWindMove: false
+        p2PendingWindMove: false,
+        player1SkipTurn: false,
+        player2SkipTurn: false
       });
     }
 
