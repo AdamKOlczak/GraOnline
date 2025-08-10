@@ -1,88 +1,40 @@
+<!-- file: boat_game_wind_fixed.html -->
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Boat Game with Wind Direction</title>
+  <title>Boat Game with Wind Direction (fixed)</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <meta charset="UTF-8">
   <style>
-    table {
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-    td {
-      width: 40px;
-      height: 40px;
-      border: 1px solid black;
-      text-align: center;
-      font-size: 18px;
-    }
-    button {
-      width: 50px;
-      height: 50px;
-      font-size: 16px;
-    }
-    #playerSelection button {
-      width: 120px;
-      height: 50px;
-      font-size: 18px;
-      font-weight: bold;
-      margin: 5px;
-    }
-    #playerSelection {
-      margin-bottom: 15px;
-    }
-    .disabled {
-      opacity: 0.5;
-      pointer-events: none;
-    }
+    table { border-collapse: collapse; margin-top: 10px; }
+    td { width: 40px; height: 40px; border: 1px solid black; text-align: center; font-size: 18px; }
+    button { width: 50px; height: 50px; font-size: 16px; }
+    #playerSelection button { width: 120px; height: 50px; font-size: 18px; font-weight: bold; margin: 5px; }
+    #playerSelection { margin-bottom: 15px; }
+    .disabled { opacity: 0.5; pointer-events: none; }
     .ko-ship { text-decoration: line-through; }
     .p1 { color: red; font-weight: bold; }
     .p2 { color: blue; font-weight: bold; }
-    .controls {
-      display: grid;
-      grid-template-columns: 50px 50px 50px;
-      grid-template-rows: 50px 50px 50px;
-      gap: 5px;
-      justify-content: center;
-      margin-top: 10px;
-    }
-    #windInfo {
-      font-size: 18px;
-      font-weight: bold;
-    }
-    #modeInfo {
-      font-weight: bold;
-      text-align: center;
-      margin-top: 8px;
-    }
-    #windMoveChoice {
-      margin-top: 16px;
-      padding: 8px 0;
-      text-align: center;
-      background: #eef;
-      border-radius: 10px;
-      display: none;
-    }
-    #windMoveChoice button {
-      width: auto;
-      min-width: 120px;
-      font-size: 18px;
-      margin: 4px;
-      font-weight: bold;
-    }
+    .controls { display: grid; grid-template-columns: 50px 50px 50px; grid-template-rows: 50px 50px 50px; gap: 5px; justify-content: center; margin-top: 10px; }
+    #windInfo { font-size: 18px; font-weight: bold; }
+    #modeInfo { font-weight: bold; text-align: center; margin-top: 8px; }
+    #windMoveChoice { margin-top: 16px; padding: 8px 0; text-align: center; background: #eef; border-radius: 10px; display: none; }
+    #windMoveChoice button { width: auto; min-width: 120px; font-size: 18px; margin: 4px; font-weight: bold; }
+    #pendingWindInfo { font-size: 14px; color: #444; margin-top: 6px; }
   </style>
 </head>
 <body>
   <h2>Boat Game with Wind</h2>
-  
+
   <div id="playerSelection">
     <p>Wybierz gracza:</p>
     <button id="choosePlayer1">Player 1 (🚤1)</button>
     <button id="choosePlayer2">Player 2 (🚤2)</button>
   </div>
-  
+
   <p id="windInfo"></p>
+  <p id="pendingWindInfo"></p>
   <p id="turnInfo"></p>
   <button id="btnResetGame">Nowa gra</button>
   <table id="grid"></table>
@@ -109,6 +61,7 @@
   </div>
 
   <script>
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyATOiD3Hp077WyGNi50KFTCxx_yrmuyxf0",
       authDomain: "gratest-cfc14.firebaseapp.com",
@@ -125,38 +78,16 @@
     const SIZE = 8;
     const initialWinds = ["NW", "SE"];
     const allDirections = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-    const directionSymbolsFull = { 
-      "N": "↑", "NE": "↗", "E": "→", "SE": "↘", 
-      "S": "↓", "SW": "↙", "W": "←", "NW": "↖" 
-    };
-    const windVectors = {
-      "N": {row: -1, col: 0},
-      "NE": {row: -1, col: 1},
-      "E": {row: 0, col: 1},
-      "SE": {row: 1, col: 1},
-      "S": {row: 1, col: 0},
-      "SW": {row: 1, col: -1},
-      "W": {row: 0, col: -1},
-      "NW": {row: -1, col: -1}
-    };
+    const directionSymbolsFull = { "N": "↑", "NE": "↗", "E": "→", "SE": "↘", "S": "↓", "SW": "↙", "W": "←", "NW": "↖" };
+    const windVectors = { N: {row:-1,col:0}, NE:{row:-1,col:1}, E:{row:0,col:1}, SE:{row:1,col:1}, S:{row:1,col:0}, SW:{row:1,col:-1}, W:{row:0,col:-1}, NW:{row:-1,col:-1} };
 
     const gridEl = document.getElementById('grid');
     const turnInfo = document.getElementById('turnInfo');
     const windInfo = document.getElementById('windInfo');
+    const pendingWindInfo = document.getElementById('pendingWindInfo');
     const modeInfo = document.getElementById('modeInfo');
-    const btns = {
-      up: document.getElementById('btnUp'),
-      down: document.getElementById('btnDown'),
-      left: document.getElementById('btnLeft'),
-      right: document.getElementById('btnRight'),
-      upLeft: document.getElementById('btnUpLeft'),
-      upRight: document.getElementById('btnUpRight'),
-      downLeft: document.getElementById('btnDownLeft'),
-      downRight: document.getElementById('btnDownRight')
-    };
+    const btns = { up: document.getElementById('btnUp'), down: document.getElementById('btnDown'), left: document.getElementById('btnLeft'), right: document.getElementById('btnRight'), upLeft: document.getElementById('btnUpLeft'), upRight: document.getElementById('btnUpRight'), downLeft: document.getElementById('btnDownLeft'), downRight: document.getElementById('btnDownRight') };
     const btnToggleMode = document.getElementById('btnToggleMode');
-
-    // Wind move choice dialog
     const windMoveChoiceDiv = document.getElementById('windMoveChoice');
     const moveWithWindBtn = document.getElementById('moveWithWind');
     const stayInPlaceBtn = document.getElementById('stayInPlace');
@@ -181,12 +112,15 @@
           p2: { row: 0, col: SIZE - 1 },
           currentTurn: "player1",
           wind: initialWind,
+          windNext: null, // scheduled new wind
           debris: [],
           moveTurnCounter: 0,
           p1PendingWindMove: false,
           p2PendingWindMove: false,
           player1SkipTurn: false,
-          player2SkipTurn: false
+          player2SkipTurn: false,
+          player1JustKOd: false,
+          player2JustKOd: false
         });
       }
     });
@@ -216,14 +150,8 @@
     }
 
     // ---- PLAYER SELECTION ----
-    document.getElementById('choosePlayer1').onclick = () => {
-      player = 'player1';
-      afterPlayerSelected();
-    };
-    document.getElementById('choosePlayer2').onclick = () => {
-      player = 'player2';
-      afterPlayerSelected();
-    };
+    document.getElementById('choosePlayer1').onclick = () => { player = 'player1'; afterPlayerSelected(); };
+    document.getElementById('choosePlayer2').onclick = () => { player = 'player2'; afterPlayerSelected(); };
     function afterPlayerSelected() {
       document.getElementById('playerSelection').style.display = 'none';
       gameRef.once('value', snap => {
@@ -243,18 +171,14 @@
       if (!game) return;
       currentGame = game;
       const myTurn = (game.currentTurn === player);
-      const windPending = (player === "player1" && game.p1PendingWindMove) ||
-                          (player === "player2" && game.p2PendingWindMove);
+      const windPending = (player === "player1" && game.p1PendingWindMove) || (player === "player2" && game.p2PendingWindMove);
       const iAmKO = game[player + 'SkipTurn'];
-      Object.values(btns).forEach(btn => {
-        btn.disabled = !myTurn || windPending || iAmKO;
-      });
+      Object.values(btns).forEach(btn => { btn.disabled = !myTurn || windPending || iAmKO; });
       btnToggleMode.disabled = !myTurn || windPending || iAmKO;
       updateModeUI();
-      // KO message handling and auto-skip
+
       if (myTurn && iAmKO) {
         turnInfo.textContent = "You are knocked out this turn! (collided with debris)";
-        // Auto-advance turn after short delay
         setTimeout(() => {
           gameRef.transaction(game => {
             if (!game) return game;
@@ -263,7 +187,7 @@
             game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
             return game;
           });
-        }, 400); // Show KO message briefly
+        }, 400);
       } else {
         turnInfo.textContent = `Current turn: ${game.currentTurn} — You are ${player}`;
       }
@@ -272,16 +196,12 @@
 
     // ---- SHOW WIND MOVE CHOICE ----
     function updateWindMoveUI() {
-      if (!currentGame || !player) {
-        windMoveChoiceDiv.style.display = "none";
-        return;
-      }
-      const pending = (player === "player1" && currentGame.p1PendingWindMove) ||
-                      (player === "player2" && currentGame.p2PendingWindMove);
+      if (!currentGame || !player) { windMoveChoiceDiv.style.display = "none"; pendingWindInfo.textContent = ''; return; }
+      const pending = (player === "player1" && currentGame.p1PendingWindMove) || (player === "player2" && currentGame.p2PendingWindMove);
       const iAmKO = currentGame[player + 'SkipTurn'];
       if (pending && !iAmKO) {
         windMoveChoiceDiv.style.display = "block";
-        windDirSpan.textContent = directionSymbolsFull[currentGame.wind] || "?";
+        windDirSpan.textContent = directionSymbolsFull[currentGame.wind] || "?"; // show the wind that just blew
         moveWithWindBtn.disabled = false;
         stayInPlaceBtn.disabled = false;
         windMoveChoiceDiv.querySelector('p').textContent = "Wiatr wieje! Wybierz:";
@@ -291,11 +211,16 @@
         moveWithWindBtn.disabled = true;
         stayInPlaceBtn.disabled = true;
         windMoveChoiceDiv.querySelector('p').textContent = "You are knocked out this wind! (collided with debris)";
-        // Auto-move with wind after 0.7s
         setTimeout(() => submitWindMove(true), 700);
       } else {
         windMoveChoiceDiv.style.display = "none";
-        windMoveChoiceDiv.querySelector('p').textContent = "Wiatr wieje! Wybierz:";
+      }
+
+      // Show scheduled (pending) wind change if present
+      if (currentGame.windNext) {
+        pendingWindInfo.textContent = `Pending wind (will apply after choices): ${currentGame.windNext} ${directionSymbolsFull[currentGame.windNext] || ''}`;
+      } else {
+        pendingWindInfo.textContent = '';
       }
     }
 
@@ -307,9 +232,7 @@
       drawGrid(game);
       windInfo.textContent = `Wind: ${game.wind} ${directionSymbolsFull[game.wind] || "?"}`;
       if (player) {
-        if (game.currentTurn === player && lastTurn !== player) {
-          mode = "move";
-        }
+        if (game.currentTurn === player && lastTurn !== player) { mode = "move"; }
         lastTurn = game.currentTurn;
         updateTurnButtonsCache(game);
       }
@@ -319,39 +242,24 @@
     btnToggleMode.onclick = () => {
       if (!player || !currentGame) return;
       if (currentGame.currentTurn !== player) return;
-      // Block if wind move pending or KO
-      if ((player === "player1" && currentGame.p1PendingWindMove) ||
-          (player === "player2" && currentGame.p2PendingWindMove) ||
-          currentGame[player + "SkipTurn"]) return;
+      if ((player === "player1" && currentGame.p1PendingWindMove) || (player === "player2" && currentGame.p2PendingWindMove) || currentGame[player + "SkipTurn"]) return;
       mode = (mode === "move") ? "wind" : "move";
       updateModeUI();
       updateTurnButtonsCache(currentGame);
     };
 
-    function wrap(value) {
-      return (value + SIZE) % SIZE;
-    }
+    function wrap(value) { return (value + SIZE) % SIZE; }
 
     function getRandomUnoccupiedCell(game) {
-      let cell;
-      let attempts = 0;
+      let cell; let attempts = 0;
       do {
-        cell = {
-          row: Math.floor(Math.random() * SIZE),
-          col: Math.floor(Math.random() * SIZE)
-        };
-        attempts++;
-        if (attempts > 100) break;
-      } while (
-        (cell.row === game.p1.row && cell.col === game.p1.col) ||
-        (cell.row === game.p2.row && cell.col === game.p2.col) ||
-        (game.debris && game.debris.some(d => d.row === cell.row && d.col === cell.col))
-      );
+        cell = { row: Math.floor(Math.random() * SIZE), col: Math.floor(Math.random() * SIZE) };
+        attempts++; if (attempts > 100) break;
+      } while ((cell.row === game.p1.row && cell.col === game.p1.col) || (cell.row === game.p2.row && cell.col === game.p2.col) || (game.debris && game.debris.some(d => d.row === cell.row && d.col === cell.col)) );
       return cell;
     }
 
     function checkCollisionsAndHandle(game, playerName) {
-      // Only set KO flag and move debris away if player collides with debris.
       if (!game.debris) return;
       let playerObj = playerName === "player1" ? game.p1 : game.p2;
       let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
@@ -359,8 +267,7 @@
         const newCell = getRandomUnoccupiedCell(game);
         game.debris[debrisIdx] = newCell;
         game[playerName + "SkipTurn"] = true;
-        // Do NOT move the player!
-        // Player remains on the square they were KO'd.
+        // don't move the player here
       }
     }
     function checkBothPlayersOnSameDebris(game) {
@@ -376,13 +283,11 @@
       }
     }
 
+    // Blow wind (moves debris) using current game.wind
     function blowWind(game) {
       if (!game.debris || !game.wind) return;
       const v = windVectors[game.wind];
-      game.debris = game.debris.map(d => ({
-        row: wrap(d.row + v.row),
-        col: wrap(d.col + v.col)
-      }));
+      game.debris = game.debris.map(d => ({ row: wrap(d.row + v.row), col: wrap(d.col + v.col) }));
       ["player1", "player2"].forEach(playerKey => {
         const playerObj = playerKey === "player1" ? game.p1 : game.p2;
         let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
@@ -390,58 +295,62 @@
           const newCell = getRandomUnoccupiedCell(game);
           game.debris[debrisIdx] = newCell;
           game[playerKey + "SkipTurn"] = true;
-          game[playerKey + "JustKOd"] = true; // <--- NEW
+          game[playerKey + "JustKOd"] = true; // mark they were KO'd by this wind
         }
       });
       game.p1PendingWindMove = true;
       game.p2PendingWindMove = true;
     }
 
-    moveWithWindBtn.onclick = function() {
-      submitWindMove(true);
-    };
-    stayInPlaceBtn.onclick = function() {
-      submitWindMove(false);
-    };
+    moveWithWindBtn.onclick = function() { submitWindMove(true); };
+    stayInPlaceBtn.onclick = function() { submitWindMove(false); };
 
+    // Submit player's choice for the current wind (uses the wind that just blew: game.wind)
     function submitWindMove(moveWithWind) {
-  gameRef.transaction(game => {
-    if (!game) return game;
-    const v = windVectors[game.wind];
+      gameRef.transaction(game => {
+        if (!game) return game;
+        const v = windVectors[game.wind]; // IMPORTANT: use the wind that blew (we won't apply windNext until both choices resolved)
 
-    if (player === "player1" && game.p1PendingWindMove) {
-      if (!game.player1JustKOd && moveWithWind) {  // ❗ only move if not KO'd this turn
-        game.p1.row = wrap(game.p1.row + v.row);
-        game.p1.col = wrap(game.p1.col + v.col);
-      }
-      game.p1PendingWindMove = false;
-      game.player1JustKOd = false;
+        if (player === "player1" && game.p1PendingWindMove) {
+          if (!game.player1JustKOd && moveWithWind) {
+            game.p1.row = wrap(game.p1.row + v.row);
+            game.p1.col = wrap(game.p1.col + v.col);
+          }
+          game.p1PendingWindMove = false;
+        }
+        if (player === "player2" && game.p2PendingWindMove) {
+          if (!game.player2JustKOd && moveWithWind) {
+            game.p2.row = wrap(game.p2.row + v.row);
+            game.p2.col = wrap(game.p2.col + v.col);
+          }
+          game.p2PendingWindMove = false;
+        }
+
+        // Only after both players have resolved their wind choice do we handle collisions and apply the scheduled wind change
+        if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
+          checkCollisionsAndHandle(game, "player1");
+          checkCollisionsAndHandle(game, "player2");
+          checkBothPlayersOnSameDebris(game);
+
+          // Apply scheduled wind change now (if any)
+          if (game.windNext) {
+            game.wind = game.windNext;
+            game.windNext = null;
+          }
+
+          // Clear temporary KO markers after resolution
+          game.player1JustKOd = false;
+          game.player2JustKOd = false;
+        }
+
+        return game;
+      });
     }
-
-    if (player === "player2" && game.p2PendingWindMove) {
-      if (!game.player2JustKOd && moveWithWind) {  // same for player 2
-        game.p2.row = wrap(game.p2.row + v.row);
-        game.p2.col = wrap(game.p2.col + v.col);
-      }
-      game.p2PendingWindMove = false;
-      game.player2JustKOd = false;
-    }
-
-    if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
-      checkCollisionsAndHandle(game, "player1");
-      checkCollisionsAndHandle(game, "player2");
-      checkBothPlayersOnSameDebris(game);
-    }
-
-    return game;
-  });
-}
 
     function handleAction(deltaRow, deltaCol) {
       if (!player || !currentGame) return;
       if (currentGame.currentTurn !== player) return;
-      if ((player === "player1" && currentGame.p1PendingWindMove) ||
-          (player === "player2" && currentGame.p2PendingWindMove)) return;
+      if ((player === "player1" && currentGame.p1PendingWindMove) || (player === "player2" && currentGame.p2PendingWindMove)) return;
       if (currentGame[player + "SkipTurn"]) {
         gameRef.transaction(game => {
           if (!game) return game;
@@ -457,13 +366,8 @@
         gameRef.transaction(game => {
           if (!game) return game;
           if (game.currentTurn !== player) return game;
-          if (player === "player1") {
-            game.p1.row = wrap(game.p1.row + deltaRow);
-            game.p1.col = wrap(game.p1.col + deltaCol);
-          } else {
-            game.p2.row = wrap(game.p2.row + deltaRow);
-            game.p2.col = wrap(game.p2.col + deltaCol);
-          }
+          if (player === "player1") { game.p1.row = wrap(game.p1.row + deltaRow); game.p1.col = wrap(game.p1.col + deltaCol); }
+          else { game.p2.row = wrap(game.p2.row + deltaRow); game.p2.col = wrap(game.p2.col + deltaCol); }
           checkCollisionsAndHandle(game, player);
           game.moveTurnCounter = (game.moveTurnCounter || 0) + 1;
           if (game.moveTurnCounter >= 2) {
@@ -477,20 +381,15 @@
         let vert = deltaRow === -1 ? "N" : deltaRow === 1 ? "S" : "";
         let horiz = deltaCol === -1 ? "W" : deltaCol === 1 ? "E" : "";
         const newWind = vert + horiz;
-        if (!allDirections.includes(newWind)) {
-          console.warn("Invalid wind direction selected:", newWind);
-          return;
-        }
-        if (currentGame.wind === newWind) {
-          console.log("Wind is already", newWind, "- no change");
-          return;
-        }
+        if (!allDirections.includes(newWind)) { console.warn("Invalid wind direction selected:", newWind); return; }
+        if (currentGame.wind === newWind) { console.log("Wind is already", newWind, "- no change"); return; }
 
+        // Schedule wind change: blow using CURRENT wind now, but set windNext so new direction applies after players choose
         gameRef.transaction(game => {
           if (!game) return game;
           if (game.currentTurn !== player) return game;
-          blowWind(game);
-          game.wind = newWind;
+          blowWind(game); // blows with game.wind
+          game.windNext = newWind; // schedule the new wind to apply AFTER players decide
           game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
           return game;
         });
@@ -512,19 +411,13 @@
       const forbidden = new Set();
       forbidden.add(`${p1start.row},${p1start.col}`);
       forbidden.add(`${p2start.row},${p2start.col}`);
-      for (let r = 3; r <= 4; r++) {
-        for (let c = 3; c <= 4; c++) {
-          forbidden.add(`${r},${c}`);
-        }
-      }
+      for (let r = 3; r <= 4; r++) for (let c = 3; c <= 4; c++) forbidden.add(`${r},${c}`);
       const debris = [];
       while (debris.length < 8) {
         const r = Math.floor(Math.random() * SIZE);
         const c = Math.floor(Math.random() * SIZE);
         const key = `${r},${c}`;
-        if (!forbidden.has(key) && !debris.some(d => d.row === r && d.col === c)) {
-          debris.push({ row: r, col: c });
-        }
+        if (!forbidden.has(key) && !debris.some(d => d.row === r && d.col === c)) debris.push({ row: r, col: c });
       }
       const newWind = Math.random() < 0.5 ? "NW" : "SE";
       return gameRef.set({
@@ -532,33 +425,19 @@
         p2: p2start,
         currentTurn: "player1",
         wind: newWind,
+        windNext: null,
         debris: debris,
         moveTurnCounter: 0,
         p1PendingWindMove: false,
         p2PendingWindMove: false,
         player1SkipTurn: false,
-        player2SkipTurn: false
+        player2SkipTurn: false,
+        player1JustKOd: false,
+        player2JustKOd: false
       });
     }
 
-    document.getElementById('btnResetGame').onclick = () => {
-      resetGame()
-        .then(() => console.log('Gra została zresetowana'))
-        .catch(err => console.error('Błąd resetu gry:', err));
-    };
-</script>
+    document.getElementById('btnResetGame').onclick = () => { resetGame().then(() => console.log('Gra została zresetowana')).catch(err => console.error('Błąd resetu gry:', err)); };
+  </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
