@@ -1,12 +1,17 @@
 // ui.js
-import { initializeGameIfNeeded, listenToGame, makeMove } from './game-state.js';
+import { initializeGameIfNeeded, listenToGame, makeMove, toggleMode } from './game-state.js';
 
 const SIZE = 8;
-const directionsSymbols = { NW: "↖", SE: "↘" };
+const directionsSymbols = {
+  N: "↑", NE: "↗", E: "→", SE: "↘",
+  S: "↓", SW: "↙", W: "←", NW: "↖"
+};
 
 const gridEl = document.getElementById('grid');
 const turnInfo = document.getElementById('turnInfo');
 const windInfo = document.getElementById('windInfo');
+const toggleBtn = document.getElementById('toggleMode');
+
 const btns = {
   up: document.getElementById('btnUp'),
   down: document.getElementById('btnDown'),
@@ -31,6 +36,8 @@ function drawGrid(game) {
     const tr = document.createElement('tr');
     for (let c = 0; c < SIZE; c++) {
       const td = document.createElement('td');
+
+      // Player boats
       if (r === game.p1.row && c === game.p1.col) {
         td.textContent = '🚤1';
         td.className = 'p1';
@@ -38,6 +45,11 @@ function drawGrid(game) {
         td.textContent = '🚤2';
         td.className = 'p2';
       }
+      // Debris
+      else if (game.debris && game.debris.some(d => d.row === r && d.col === c)) {
+        td.textContent = '🪵';
+      }
+
       tr.appendChild(td);
     }
     gridEl.appendChild(tr);
@@ -47,16 +59,23 @@ function drawGrid(game) {
 listenToGame(game => {
   if (!game) return;
   drawGrid(game);
-  windInfo.textContent = `Wind: ${game.wind} ${directionsSymbols[game.wind] || game.wind}`;
-  turnInfo.textContent = `Current turn: ${game.currentTurn}`;
+
+  if (game.windJustBlew) {
+    windInfo.textContent = `💨 Wind blew! Direction: ${game.wind} ${directionsSymbols[game.wind] || ""}`;
+  } else {
+    windInfo.textContent = `Wind: ${game.wind} ${directionsSymbols[game.wind] || ""}`;
+  }
+
+  turnInfo.textContent = `Current turn: ${game.currentTurn} (${game.mode || 'move'})`;
 
   const myTurn = (game.currentTurn === player);
   Object.values(btns).forEach(btn => {
     btn.classList.toggle('disabled', !myTurn);
   });
+  toggleBtn.classList.toggle('disabled', !myTurn);
 });
 
-// Bind buttons
+// Bind movement/wind change buttons
 btns.up.onclick = () => makeMove(player, -1, 0);
 btns.down.onclick = () => makeMove(player, 1, 0);
 btns.left.onclick = () => makeMove(player, 0, -1);
@@ -65,3 +84,6 @@ btns.upLeft.onclick = () => makeMove(player, -1, -1);
 btns.upRight.onclick = () => makeMove(player, -1, 1);
 btns.downLeft.onclick = () => makeMove(player, 1, -1);
 btns.downRight.onclick = () => makeMove(player, 1, 1);
+
+// Toggle move/wind mode
+toggleBtn.onclick = () => toggleMode(player);
