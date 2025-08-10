@@ -254,6 +254,16 @@
       // KO message
       if (myTurn && iAmKO) {
         turnInfo.textContent = "You are knocked out this turn! (collided with debris)";
+        // --- AUTO-SKIP KO'D TURN ---
+        setTimeout(() => {
+          gameRef.transaction(game => {
+            if (!game) return game;
+            if (game.currentTurn !== player) return game;
+            game[player + "SkipTurn"] = false;
+            game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+            return game;
+          });
+        }, 400); // short delay so the message can be seen
       } else {
         turnInfo.textContent = `Current turn: ${game.currentTurn} — You are ${player}`;
       }
@@ -522,6 +532,7 @@
 </script>
 </body>
 </html>
+
 
 
 
