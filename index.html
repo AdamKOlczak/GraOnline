@@ -398,6 +398,17 @@ function blowWind(game) {
   game.p1PendingWindMove = true;
   game.p2PendingWindMove = true;
 }
+
+moveWithWindBtn.onclick = function() {
+  submitWindMove(true);
+};
+stayInPlaceBtn.onclick = function() {
+  submitWindMove(false);
+};
+  // Now require wind move choices
+  game.p1PendingWindMove = true;
+  game.p2PendingWindMove = true;
+}
     
     function submitWindMove(moveWithWind) {
       gameRef.transaction(game => {
@@ -540,6 +551,7 @@ function blowWind(game) {
 </script>
 </body>
 </html>
+
 
 
 
