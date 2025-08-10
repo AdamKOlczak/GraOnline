@@ -251,10 +251,10 @@
       });
       btnToggleMode.disabled = !myTurn || windPending || iAmKO;
       updateModeUI();
-      // KO message
+      // KO message handling and auto-skip
       if (myTurn && iAmKO) {
         turnInfo.textContent = "You are knocked out this turn! (collided with debris)";
-        // --- AUTO-SKIP KO'D TURN ---
+        // Auto-advance turn after short delay
         setTimeout(() => {
           gameRef.transaction(game => {
             if (!game) return game;
@@ -263,7 +263,7 @@
             game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
             return game;
           });
-        }, 400); // short delay so the message can be seen
+        }, 400); // Show KO message briefly
       } else {
         turnInfo.textContent = `Current turn: ${game.currentTurn} — You are ${player}`;
       }
@@ -351,6 +351,7 @@
     }
 
     function checkCollisionsAndHandle(game, playerName) {
+      // Only set KO flag and move debris away if player collides with debris.
       if (!game.debris) return;
       let playerObj = playerName === "player1" ? game.p1 : game.p2;
       let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
@@ -358,6 +359,8 @@
         const newCell = getRandomUnoccupiedCell(game);
         game.debris[debrisIdx] = newCell;
         game[playerName + "SkipTurn"] = true;
+        // Do NOT move the player!
+        // Player remains on the square they were KO'd.
       }
     }
     function checkBothPlayersOnSameDebris(game) {
@@ -373,31 +376,31 @@
       }
     }
 
-    function blowWind(game) {
-      if (!game.debris || !game.wind) return;
-      const v = windVectors[game.wind];
-      // Move debris
-      game.debris = game.debris.map(d => ({
-        row: wrap(d.row + v.row),
-        col: wrap(d.col + v.col)
-      }));
+function blowWind(game) {
+  if (!game.debris || !game.wind) return;
+  const v = windVectors[game.wind];
+  // Move debris
+  game.debris = game.debris.map(d => ({
+    row: wrap(d.row + v.row),
+    col: wrap(d.col + v.col)
+  }));
 
-      // --- Detect collision: debris hitting players ---
-      ["player1", "player2"].forEach(playerKey => {
-        const playerObj = playerKey === "player1" ? game.p1 : game.p2;
-        let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
-        if (debrisIdx !== -1) {
-          // Relocate this debris and KO the player
-          const newCell = getRandomUnoccupiedCell(game);
-          game.debris[debrisIdx] = newCell;
-          game[playerKey + "SkipTurn"] = true;
-        }
-      });
-
-      // Now require wind move choices
-      game.p1PendingWindMove = true;
-      game.p2PendingWindMove = true;
+  // Detect collision: debris hitting players (KO them, but do not move the player)
+  ["player1", "player2"].forEach(playerKey => {
+    const playerObj = playerKey === "player1" ? game.p1 : game.p2;
+    let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
+    if (debrisIdx !== -1) {
+      const newCell = getRandomUnoccupiedCell(game);
+      game.debris[debrisIdx] = newCell;
+      game[playerKey + "SkipTurn"] = true;
+      // Do NOT move the player!
     }
+  });
+
+  // Now require wind move choices from both
+  game.p1PendingWindMove = true;
+  game.p2PendingWindMove = true;
+}
 
     moveWithWindBtn.onclick = function() {
       submitWindMove(true);
@@ -547,6 +550,7 @@
 </script>
 </body>
 </html>
+
 
 
 
