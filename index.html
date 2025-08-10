@@ -114,7 +114,7 @@
       authDomain: "gratest-cfc14.firebaseapp.com",
       databaseURL: "https://gratest-cfc14-default-rtdb.europe-west1.firebasedatabase.app",
       projectId: "gratest-cfc14",
-      storageBucket: "gratest-cfc14.firebasestorage.app",
+      storageBucket: "gratest-cfc14.appspot.com",
       messagingSenderId: "26328738989",
       appId: "1:26328738989:web:18484211ec540a9cf66a24"
     };
@@ -373,83 +373,67 @@
       }
     }
 
-function blowWind(game) {
-  if (!game.debris || !game.wind) return;
-  const v = windVectors[game.wind];
-  // Move debris
-  game.debris = game.debris.map(d => ({
-    row: wrap(d.row + v.row),
-    col: wrap(d.col + v.col)
-  }));
+    function blowWind(game) {
+      if (!game.debris || !game.wind) return;
+      const v = windVectors[game.wind];
+      // Move debris
+      game.debris = game.debris.map(d => ({
+        row: wrap(d.row + v.row),
+        col: wrap(d.col + v.col)
+      }));
 
-  // --- Detect collision: debris hitting players ---
-  ["player1", "player2"].forEach(playerKey => {
-    const playerObj = playerKey === "player1" ? game.p1 : game.p2;
-    let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
-    if (debrisIdx !== -1) {
-      // Relocate this debris and KO the player
-      const newCell = getRandomUnoccupiedCell(game);
-      game.debris[debrisIdx] = newCell;
-      game[playerKey + "SkipTurn"] = true;
+      // --- Detect collision: debris hitting players ---
+      ["player1", "player2"].forEach(playerKey => {
+        const playerObj = playerKey === "player1" ? game.p1 : game.p2;
+        let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
+        if (debrisIdx !== -1) {
+          // Relocate this debris and KO the player
+          const newCell = getRandomUnoccupiedCell(game);
+          game.debris[debrisIdx] = newCell;
+          game[playerKey + "SkipTurn"] = true;
+        }
+      });
+
+      // Now require wind move choices
+      game.p1PendingWindMove = true;
+      game.p2PendingWindMove = true;
     }
-  });
 
-  // Now require wind move choices
-  game.p1PendingWindMove = true;
-  game.p2PendingWindMove = true;
-}
+    moveWithWindBtn.onclick = function() {
+      submitWindMove(true);
+    };
+    stayInPlaceBtn.onclick = function() {
+      submitWindMove(false);
+    };
 
-moveWithWindBtn.onclick = function() {
-  submitWindMove(true);
-};
-stayInPlaceBtn.onclick = function() {
-  submitWindMove(false);
-};
-
-  // Now require wind move choices
-  game.p1PendingWindMove = true;
-  game.p2PendingWindMove = true;
-}
-
-moveWithWindBtn.onclick = function() {
-  submitWindMove(true);
-};
-stayInPlaceBtn.onclick = function() {
-  submitWindMove(false);
-};
-  // Now require wind move choices
-  game.p1PendingWindMove = true;
-  game.p2PendingWindMove = true;
-}
-    
     function submitWindMove(moveWithWind) {
       gameRef.transaction(game => {
         if (!game) return game;
         const v = windVectors[game.wind];
         if (player === "player1" && game.p1PendingWindMove) {
-        // Always move with wind if KO'd
+          // Always move with wind if KO'd
           if (game.player1SkipTurn || moveWithWind) {
             game.p1.row = wrap(game.p1.row + v.row);
             game.p1.col = wrap(game.p1.col + v.col);
           }
           game.p1PendingWindMove = false;
         }
-      if (player === "player2" && game.p2PendingWindMove) {
-      // Always move with wind if KO'd
-      if (game.player2SkipTurn || moveWithWind) {
-        game.p2.row = wrap(game.p2.row + v.row);
-        game.p2.col = wrap(game.p2.col + v.col);
-      }
-      game.p2PendingWindMove = false;
+        if (player === "player2" && game.p2PendingWindMove) {
+          // Always move with wind if KO'd
+          if (game.player2SkipTurn || moveWithWind) {
+            game.p2.row = wrap(game.p2.row + v.row);
+            game.p2.col = wrap(game.p2.col + v.col);
+          }
+          game.p2PendingWindMove = false;
+        }
+        if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
+          checkCollisionsAndHandle(game, "player1");
+          checkCollisionsAndHandle(game, "player2");
+          checkBothPlayersOnSameDebris(game);
+        }
+        return game;
+      });
     }
-    if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
-      checkCollisionsAndHandle(game, "player1");
-      checkCollisionsAndHandle(game, "player2");
-      checkBothPlayersOnSameDebris(game);
-    }
-    return game;
-  });
-}
 
     function handleAction(deltaRow, deltaCol) {
       if (!player || !currentGame) return;
@@ -563,6 +547,7 @@ stayInPlaceBtn.onclick = function() {
 </script>
 </body>
 </html>
+
 
 
 
