@@ -1,6 +1,7 @@
 // game-state.js
 import { db } from './firebase-config.js';
 import { ref, onValue, runTransaction, get, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
+import { showWindPopup } from './ui.js';
 
 const SIZE = 8;
 const gameRef = ref(db, 'boatGameWind8x8');
@@ -58,7 +59,8 @@ function blowWind(game) {
     row: wrap(d.row + delta.row),
     col: wrap(d.col + delta.col)
   }));
-
+  
+  showWindPopup(game.wind);
   return game;
 }
 
