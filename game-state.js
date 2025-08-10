@@ -60,6 +60,7 @@ function blowWind(game) {
     col: wrap(d.col + delta.col)
   }));
   
+  console.log('BLOWWIND', game.wind);
   showWindPopup(game.wind);
   return game;
 }
@@ -110,6 +111,8 @@ export function makeMove(player, deltaRow, deltaCol) {
       game = blowWind(game);
       game.moveCountSinceWind = 0;
     }
+
+    console.log('player moved yo');
 
     game.lastAction = "move";
     game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
