@@ -55,24 +55,24 @@ function drawGrid(game) {
     gridEl.appendChild(tr);
   }
 }
+const windBlowInfo = document.getElementById('windBlowInfo');
 
 listenToGame(game => {
   if (!game) return;
   drawGrid(game);
+  windInfo.textContent = `Wind: ${game.wind} ${directionsSymbols[game.wind] || game.wind}`;
+  turnInfo.textContent = `Current turn: ${game.currentTurn}`;
 
   if (game.windJustBlew) {
-    windInfo.textContent = `💨 Wind blew! Direction: ${game.wind} ${directionsSymbols[game.wind] || ""}`;
+    windBlowInfo.textContent = "🌬️ Wind blew! Debris moved.";
   } else {
-    windInfo.textContent = `Wind: ${game.wind} ${directionsSymbols[game.wind] || ""}`;
+    windBlowInfo.textContent = "";
   }
-
-  turnInfo.textContent = `Current turn: ${game.currentTurn} (${game.mode || 'move'})`;
 
   const myTurn = (game.currentTurn === player);
   Object.values(btns).forEach(btn => {
     btn.classList.toggle('disabled', !myTurn);
   });
-  toggleBtn.classList.toggle('disabled', !myTurn);
 });
 
 // Bind movement/wind change buttons
