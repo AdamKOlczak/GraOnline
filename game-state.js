@@ -1,3 +1,4 @@
+// game-state.js
 import { db } from './firebase-config.js';
 import { ref, onValue, runTransaction, get, set } from "https://www.gstatic.com/firebasejs/9.23.0/firebase-database.js";
 
@@ -70,7 +71,8 @@ export function initializeGameIfNeeded() {
         currentTurn: "player1",
         wind: Math.random() < 0.5 ? "NW" : "SE", // only NW or SE
         debris: generateDebris(),
-        lastAction: null
+        lastAction: null,
+        moveCountSinceWind: 0
       });
     }
   });
@@ -87,6 +89,7 @@ export function makeMove(player, deltaRow, deltaCol) {
     if (!game) return game;
     if (game.currentTurn !== player) return game;
 
+    // Move player
     if (player === "player1") {
       game.p1.row = wrap(game.p1.row + deltaRow);
       game.p1.col = wrap(game.p1.col + deltaCol);
@@ -95,9 +98,15 @@ export function makeMove(player, deltaRow, deltaCol) {
       game.p2.col = wrap(game.p2.col + deltaCol);
     }
 
-    // If last action was also a move → wind blows
-    if (game.lastAction === "move") {
+    // Count moves in a row
+    game.moveCountSinceWind = (game.lastAction === "move")
+      ? game.moveCountSinceWind + 1
+      : 1;
+
+    // If two moves in a row, wind blows & reset counter
+    if (game.moveCountSinceWind >= 2) {
       game = blowWind(game);
+      game.moveCountSinceWind = 0;
     }
 
     game.lastAction = "move";
@@ -114,7 +123,9 @@ export function changeWind(player, direction) {
 
     // Blow wind BEFORE changing direction
     game = blowWind(game);
+    game.moveCountSinceWind = 0; // reset counter after wind event
 
+    // Change wind
     game.wind = direction;
     game.lastAction = "windChange";
     game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
