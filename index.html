@@ -373,23 +373,31 @@
       }
     }
 
-    function blowWind(game) {
-      if (!game.debris || !game.wind) return;
-      const v = windVectors[game.wind];
-      game.debris = game.debris.map(d => ({
-        row: wrap(d.row + v.row),
-        col: wrap(d.col + v.col)
-      }));
-      game.p1PendingWindMove = true;
-      game.p2PendingWindMove = true;
-    }
+function blowWind(game) {
+  if (!game.debris || !game.wind) return;
+  const v = windVectors[game.wind];
+  // Move debris
+  game.debris = game.debris.map(d => ({
+    row: wrap(d.row + v.row),
+    col: wrap(d.col + v.col)
+  }));
 
-    moveWithWindBtn.onclick = function() {
-      submitWindMove(true);
-    };
-    stayInPlaceBtn.onclick = function() {
-      submitWindMove(false);
-    };
+  // --- Detect collision: debris hitting players ---
+  ["player1", "player2"].forEach(playerKey => {
+    const playerObj = playerKey === "player1" ? game.p1 : game.p2;
+    let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
+    if (debrisIdx !== -1) {
+      // Relocate this debris and KO the player
+      const newCell = getRandomUnoccupiedCell(game);
+      game.debris[debrisIdx] = newCell;
+      game[playerKey + "SkipTurn"] = true;
+    }
+  });
+
+  // Now require wind move choices
+  game.p1PendingWindMove = true;
+  game.p2PendingWindMove = true;
+}
     
     function submitWindMove(moveWithWind) {
       gameRef.transaction(game => {
@@ -532,6 +540,7 @@
 </script>
 </body>
 </html>
+
 
 
 
