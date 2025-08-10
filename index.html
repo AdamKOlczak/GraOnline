@@ -281,8 +281,8 @@
         moveWithWindBtn.disabled = true;
         stayInPlaceBtn.disabled = true;
         windMoveChoiceDiv.querySelector('p').textContent = "You are knocked out this wind! (collided with debris)";
-        // Auto-clear pending flag
-        setTimeout(() => submitWindMove(false), 700);
+        // Auto-move with wind after 0.7s
+        setTimeout(() => submitWindMove(true), 700);
       } else {
         windMoveChoiceDiv.style.display = "none";
         windMoveChoiceDiv.querySelector('p').textContent = "Wiatr wieje! Wybierz:";
@@ -380,39 +380,35 @@
     stayInPlaceBtn.onclick = function() {
       submitWindMove(false);
     };
+    
     function submitWindMove(moveWithWind) {
       gameRef.transaction(game => {
         if (!game) return game;
         const v = windVectors[game.wind];
-        if (player === "player1" && game.p1PendingWindMove && !game.player1SkipTurn) {
-          if (moveWithWind) {
+        if (player === "player1" && game.p1PendingWindMove) {
+        // Always move with wind if KO'd
+          if (game.player1SkipTurn || moveWithWind) {
             game.p1.row = wrap(game.p1.row + v.row);
             game.p1.col = wrap(game.p1.col + v.col);
           }
           game.p1PendingWindMove = false;
         }
-        if (player === "player2" && game.p2PendingWindMove && !game.player2SkipTurn) {
-          if (moveWithWind) {
-            game.p2.row = wrap(game.p2.row + v.row);
-            game.p2.col = wrap(game.p2.col + v.col);
-          }
-          game.p2PendingWindMove = false;
-        }
-        // If player is KO'd, auto-clear their pending wind move
-        if (player === "player1" && game.p1PendingWindMove && game.player1SkipTurn) {
-          game.p1PendingWindMove = false;
-        }
-        if (player === "player2" && game.p2PendingWindMove && game.player2SkipTurn) {
-          game.p2PendingWindMove = false;
-        }
-        if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
-          checkCollisionsAndHandle(game, "player1");
-          checkCollisionsAndHandle(game, "player2");
-          checkBothPlayersOnSameDebris(game);
-        }
-        return game;
-      });
+      if (player === "player2" && game.p2PendingWindMove) {
+      // Always move with wind if KO'd
+      if (game.player2SkipTurn || moveWithWind) {
+        game.p2.row = wrap(game.p2.row + v.row);
+        game.p2.col = wrap(game.p2.col + v.col);
+      }
+      game.p2PendingWindMove = false;
     }
+    if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
+      checkCollisionsAndHandle(game, "player1");
+      checkCollisionsAndHandle(game, "player2");
+      checkBothPlayersOnSameDebris(game);
+    }
+    return game;
+  });
+}
 
     function handleAction(deltaRow, deltaCol) {
       if (!player || !currentGame) return;
@@ -526,5 +522,6 @@
 </script>
 </body>
 </html>
+
 
 
