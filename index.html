@@ -405,39 +405,37 @@
     };
 
     function submitWindMove(moveWithWind) {
-      gameRef.transaction(game => {
-        if (!game) return game;
-        const v = windVectors[game.wind];
-    
-        if (player === "player1" && game.p1PendingWindMove) {
-          if ((game.player1SkipTurn && !game.player1JustKOd) || moveWithWind) {
-            game.p1.row = wrap(game.p1.row + v.row);
-            game.p1.col = wrap(game.p1.col + v.col);
-          }
-          game.p1PendingWindMove = false;
-          game.player1JustKOd = false;  // Clear here immediately
-        }
-        if (player === "player2" && game.p2PendingWindMove) {
-          if ((game.player2SkipTurn && !game.player2JustKOd) || moveWithWind) {
-            game.p2.row = wrap(game.p2.row + v.row);
-            game.p2.col = wrap(game.p2.col + v.col);
-          }
-          game.p2PendingWindMove = false;
-          game.player2JustKOd = false;  // Clear here immediately
-        }
-    
-        if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
-          checkCollisionsAndHandle(game, "player1");
-          checkCollisionsAndHandle(game, "player2");
-          checkBothPlayersOnSameDebris(game);
-          // Remove clearing here
-          // game.player1JustKOd = false;
-          // game.player2JustKOd = false;
-        }
-    
-        return game;
-      });
+  gameRef.transaction(game => {
+    if (!game) return game;
+    const v = windVectors[game.wind];
+
+    if (player === "player1" && game.p1PendingWindMove) {
+      if (!game.player1JustKOd && moveWithWind) {  // ❗ only move if not KO'd this turn
+        game.p1.row = wrap(game.p1.row + v.row);
+        game.p1.col = wrap(game.p1.col + v.col);
+      }
+      game.p1PendingWindMove = false;
+      game.player1JustKOd = false;
     }
+
+    if (player === "player2" && game.p2PendingWindMove) {
+      if (!game.player2JustKOd && moveWithWind) {  // same for player 2
+        game.p2.row = wrap(game.p2.row + v.row);
+        game.p2.col = wrap(game.p2.col + v.col);
+      }
+      game.p2PendingWindMove = false;
+      game.player2JustKOd = false;
+    }
+
+    if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
+      checkCollisionsAndHandle(game, "player1");
+      checkCollisionsAndHandle(game, "player2");
+      checkBothPlayersOnSameDebris(game);
+    }
+
+    return game;
+  });
+}
 
     function handleAction(deltaRow, deltaCol) {
       if (!player || !currentGame) return;
@@ -551,6 +549,7 @@
 </script>
 </body>
 </html>
+
 
 
 
