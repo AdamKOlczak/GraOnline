@@ -2,7 +2,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Boat Game with Wind Direction (fixed)</title>
+  <title>Luźne Porty: Puszczanie Wiatrów</title>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <meta charset="UTF-8">
@@ -13,10 +13,39 @@
     #playerSelection button { width: 120px; height: 50px; font-size: 18px; font-weight: bold; margin: 5px; }
     #playerSelection { margin-bottom: 15px; }
     .disabled { opacity: 0.5; pointer-events: none; }
-    .ko-ship { text-decoration: line-through; }
+    .ko-ship { top: 0px; position: relative;}
     .p1 { color: red; font-weight: bold; }
     .p2 { color: blue; font-weight: bold; }
+    .current-turn {
+      box-shadow: 0 0 8px 3px gold;
+      border: 5px solid gold;
+      z-index: 2;
+    }
     .controls { display: grid; grid-template-columns: 50px 50px 50px; grid-template-rows: 50px 50px 50px; gap: 5px; justify-content: center; margin-top: 10px; }
+    .corner-treasure {
+      position: absolute;
+      font-size: 16px;
+      pointer-events: none;
+    }
+    td { position: relative; }
+    :root {
+      --treasure-corner-offset: -12px;
+    }
+    .corner-treasure.tl { top: var(--treasure-corner-offset); left: var(--treasure-corner-offset); }
+    .corner-treasure.tr { top: var(--treasure-corner-offset); right: var(--treasure-corner-offset); }
+    .corner-treasure.bl { bottom: var(--treasure-corner-offset); left: var(--treasure-corner-offset); }
+    .corner-treasure.br { bottom: var(--treasure-corner-offset); right: var(--treasure-corner-offset); }
+    .faint-wind-arrow {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 22px;
+      color: #1741ff;
+      opacity: 0.2;
+      z-index: 0;
+      pointer-events: none;
+    }
+td { position: relative; }
     #windInfo { font-size: 18px; font-weight: bold; }
     #modeInfo { font-weight: bold; text-align: center; margin-top: 8px; }
     #windMoveChoice { margin-top: 16px; padding: 8px 0; text-align: center; background: #eef; border-radius: 10px; display: none; }
@@ -25,7 +54,7 @@
   </style>
 </head>
 <body>
-  <h2>Boat Game with Wind</h2>
+  <h2>Luźne Porty: Puszczanie Wiatrów</h2>
 
   <div id="playerSelection">
     <p>Wybierz gracza:</p>
@@ -37,6 +66,7 @@
   <p id="pendingWindInfo"></p>
   <p id="turnInfo"></p>
   <button id="btnResetGame">Nowa gra</button>
+  <p id="windWarning" style="color: orange; font-weight: bold; display: none;">⚠️ Wind will blow after your move!</p>
   <table id="grid"></table>
 
   <div class="controls">
@@ -126,29 +156,216 @@
     });
 
     // ---- DRAWING ----
+    // ...existing code...
     function drawGrid(game) {
       gridEl.innerHTML = '';
       const p1KO = !!game.player1SkipTurn;
       const p2KO = !!game.player2SkipTurn;
+      let treasureCorners = [];
+      if (game.treasure && typeof game.treasure.row === "number" && typeof game.treasure.col === "number") {
+        const r = Math.floor(game.treasure.row);
+        const c = Math.floor(game.treasure.col);
+        treasureCorners = [
+          {row: r, col: c, corner: 'br'},
+          {row: r, col: c+1, corner: 'bl'},
+          {row: r+1, col: c, corner: 'tr'},
+          {row: r+1, col: c+1, corner: 'tl'}
+        ];
+      }
+      const p1Port = { row: SIZE - 1, col: 0 };
+      const p2Port = { row: 0, col: SIZE - 1 };
+      const faintArrow = directionSymbolsFull[game.wind] || "↑";
       for (let r = 0; r < SIZE; r++) {
         const tr = document.createElement('tr');
         for (let c = 0; c < SIZE; c++) {
           const td = document.createElement('td');
+          // Add faint wind arrow
+          const arrowSpan = document.createElement('span');
+          arrowSpan.className = 'faint-wind-arrow';
+          arrowSpan.textContent = faintArrow;
+          td.appendChild(arrowSpan);
+
+          // Port indicators
+          let isP1Port = r === p1Port.row && c === p1Port.col;
+          let isP2Port = r === p2Port.row && c === p2Port.col;
+
+          // Highlight current player's turn
+          let isCurrentTurn = false;
+          if (game.currentTurn === "player1" && r === game.p1.row && c === game.p1.col) isCurrentTurn = true;
+          if (game.currentTurn === "player2" && r === game.p2.row && c === game.p2.col) isCurrentTurn = true;
+
           if (r === game.p1.row && c === game.p1.col) {
-            td.textContent = p1KO ? '🚤❌' : '🚤1';
+            td.textContent = p1KO ? '🌪🚣🏻' : (game.p1HasTreasure ? '⛵💎' : '⛵1');
             td.className = 'p1' + (p1KO ? ' ko-ship' : '');
+            if (isP1Port) td.textContent += ' ⚓';
+            if (isCurrentTurn) td.classList.add('current-turn');
           } else if (r === game.p2.row && c === game.p2.col) {
-            td.textContent = p2KO ? '🚤❌' : '🚤2';
+            td.textContent = p2KO ? '🌪⁭🚣🏻' : (game.p2HasTreasure ? '⛵💎' : '⛵2');
             td.className = 'p2' + (p2KO ? ' ko-ship' : '');
+            if (isP2Port) td.textContent += ' ⚓';
+            if (isCurrentTurn) td.classList.add('current-turn');
           } else if (game.debris && game.debris.some(d => d.row === r && d.col === c)) {
             td.textContent = '🪵';
+          } else if (isP1Port || isP2Port) {
+            td.textContent = '⚓';
+          }
+          // Add treasure icon in the corner if needed
+          const tc = treasureCorners.find(sq => sq.row === r && sq.col === c);
+          if (tc && game.treasure) {
+            const span = document.createElement('span');
+            span.className = `corner-treasure ${tc.corner}`;
+            span.textContent = '💎';
+            td.appendChild(span);
           }
           tr.appendChild(td);
         }
         gridEl.appendChild(tr);
       }
     }
+// ...existing code...
 
+    function handleAction(deltaRow, deltaCol) {
+      if (!player || !currentGame) return;
+      if (currentGame.currentTurn !== player) return;
+      if ((player === "player1" && currentGame.p1PendingWindMove) || (player === "player2" && currentGame.p2PendingWindMove)) return;
+      if (currentGame[player + "SkipTurn"]) {
+        gameRef.transaction(game => {
+          if (!game) return game;
+          if (game.currentTurn !== player) return game;
+          game[player + "SkipTurn"] = false;
+          game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+          return game;
+        });
+        return;
+      }
+
+      // Restrict movement based on wind
+      const allowed = getAllowedDirections(currentGame.wind);
+      if (!allowed.some(a => a.row === deltaRow && a.col === deltaCol)) return;
+
+      if (mode === "move") {
+        gameRef.transaction(game => {
+          if (!game) return game;
+          if (game.currentTurn !== player) return game;
+          let newRow, newCol, oldRow, oldCol;
+          if (player === "player1") {
+            oldRow = game.p1.row;
+            oldCol = game.p1.col;
+            newRow = wrap(game.p1.row + deltaRow);
+            newCol = wrap(game.p1.col + deltaCol);
+            game.p1.row = newRow;
+            game.p1.col = newCol;
+          } else {
+            oldRow = game.p2.row;
+            oldCol = game.p2.col;
+            newRow = wrap(game.p2.row + deltaRow);
+            newCol = wrap(game.p2.col + deltaCol);
+            game.p2.row = newRow;
+            game.p2.col = newCol;
+          }
+
+    // FIRST: handle debris collision and treasure loss
+    checkCollisionsAndHandle(game, player);
+
+    // THEN: handle treasure pickup (only if player is not KO'd)
+    if (
+      !game[player + "SkipTurn"] && // Only allow pickup if not KO'd
+      game.treasure &&
+      Math.abs(deltaRow) === 1 &&
+      Math.abs(deltaCol) === 1 &&
+      game.treasure.row % 1 === 0.5 &&
+      game.treasure.col % 1 === 0.5
+    ) {
+      const tr = Math.floor(game.treasure.row);
+      const tc = Math.floor(game.treasure.col);
+      const squares = [
+        {row: tr, col: tc},
+        {row: tr, col: tc+1},
+        {row: tr+1, col: tc},
+        {row: tr+1, col: tc+1}
+      ];
+      let startPos = {row: oldRow, col: oldCol};
+      let endPos = {row: newRow, col: newCol};
+      if (
+        squares.some(sq => sq.row === startPos.row && sq.col === startPos.col) &&
+        squares.some(sq => sq.row === endPos.row && sq.col === endPos.col) &&
+        Math.abs(startPos.row - endPos.row) === 1 &&
+        Math.abs(startPos.col - endPos.col) === 1
+      ) {
+        game.treasure = null;
+        if (player === "player1") game.p1HasTreasure = true;
+        else game.p2HasTreasure = true;
+      }
+    }
+
+    // THEN: handle player collision (only if player is not KO'd)
+    let otherPlayer, otherKey, otherHasTreasure, otherRow, otherCol;
+    if (player === "player1") {
+      otherPlayer = game.p2;
+      otherKey = "player2";
+      otherHasTreasure = game.p2HasTreasure;
+      otherRow = game.p2.row;
+      otherCol = game.p2.col;
+    } else {
+      otherPlayer = game.p1;
+      otherKey = "player1";
+      otherHasTreasure = game.p1HasTreasure;
+      otherRow = game.p1.row;
+      otherCol = game.p1.col;
+    }
+    if (!game[player + "SkipTurn"] && newRow === otherRow && newCol === otherCol) {
+      game[otherKey + "SkipTurn"] = true;
+      const v = windVectors[game.wind];
+      otherPlayer.row = wrap(otherPlayer.row + v.row);
+      otherPlayer.col = wrap(otherPlayer.col + v.col);
+      if (otherHasTreasure) {
+        game[otherKey + "HasTreasure"] = false;
+        if (player === "player1") {
+          game.p1HasTreasure = true;
+          game.p2HasTreasure = false;
+          console.log('Player 1 picked up Player 2\'s treasure!');
+        } else {
+          game.p2HasTreasure = true;
+          game.p1HasTreasure = false;
+          console.log('Player 2 picked up Player 1\'s treasure!');
+        }
+        game.treasure = null;
+      }
+    }
+
+    game.moveTurnCounter = (game.moveTurnCounter || 0) + 1;
+    if (game.moveTurnCounter >= 2) {
+      blowWind(game);
+      game.moveTurnCounter = 0;
+    }
+    if (
+      (player === "player1" && game.p1HasTreasure && game.p1.row === SIZE - 1 && game.p1.col === 0) ||
+      (player === "player2" && game.p2HasTreasure && game.p2.row === 0 && game.p2.col === SIZE - 1)
+    ) {
+      game.winner = player;
+    }
+    game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+    return game;
+  });
+}
+    else {
+        let vert = deltaRow === -1 ? "N" : deltaRow === 1 ? "S" : "";
+        let horiz = deltaCol === -1 ? "W" : deltaCol === 1 ? "E" : "";
+        const newWind = vert + horiz;
+        if (!allDirections.includes(newWind)) { console.warn("Invalid wind direction selected:", newWind); return; }
+        if (currentGame.wind === newWind) { console.log("Wind is already", newWind, "- no change"); return; }
+
+        // Schedule wind change: blow using CURRENT wind now, but set windNext so new direction applies after players decide
+        gameRef.transaction(game => {
+          if (!game) return game;
+          if (game.currentTurn !== player) return game;
+          blowWind(game); // blows with game.wind
+          game.windNext = newWind; // schedule the new wind to apply AFTER players decide
+          game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
+          return game;
+        });
+      }
+    }
     // ---- PLAYER SELECTION ----
     document.getElementById('choosePlayer1').onclick = () => { player = 'player1'; afterPlayerSelected(); };
     document.getElementById('choosePlayer2').onclick = () => { player = 'player2'; afterPlayerSelected(); };
@@ -167,13 +384,34 @@
       modeInfo.textContent = `Mode: ${mode === "move" ? "Move" : "Change Wind"}`;
       btnToggleMode.style.backgroundColor = (mode === "wind") ? "#ccf" : "";
     }
+
     function updateTurnButtonsCache(game) {
       if (!game) return;
       currentGame = game;
       const myTurn = (game.currentTurn === player);
       const windPending = (player === "player1" && game.p1PendingWindMove) || (player === "player2" && game.p2PendingWindMove);
       const iAmKO = game[player + 'SkipTurn'];
-      Object.values(btns).forEach(btn => { btn.disabled = !myTurn || windPending || iAmKO; });
+      // Restrict movement based on wind
+      let allowed = [];
+      if (myTurn && !windPending && !iAmKO) {
+        allowed = getAllowedDirections(game.wind);
+      }
+      Object.entries(btns).forEach(([key, btn]) => {
+        // Map button to direction
+        const dirMap = {
+          up:    {row:-1, col:0},
+          down:  {row:1, col:0},
+          left:  {row:0, col:-1},
+          right: {row:0, col:1},
+          upLeft:    {row:-1, col:-1},
+          upRight:   {row:-1, col:1},
+          downLeft:  {row:1, col:-1},
+          downRight: {row:1, col:1}
+        };
+        const dir = dirMap[key];
+        // Enable only if allowed
+        btn.disabled = !myTurn || windPending || iAmKO || !allowed.some(a => a.row === dir.row && a.col === dir.col);
+      });
       btnToggleMode.disabled = !myTurn || windPending || iAmKO;
       updateModeUI();
 
@@ -199,10 +437,12 @@
       if (!currentGame || !player) { windMoveChoiceDiv.style.display = "none"; pendingWindInfo.textContent = ''; return; }
       const pending = (player === "player1" && currentGame.p1PendingWindMove) || (player === "player2" && currentGame.p2PendingWindMove);
       const iAmKO = currentGame[player + 'SkipTurn'];
+      const hasTreasure = (player === "player1" && currentGame.p1HasTreasure) || (player === "player2" && currentGame.p2HasTreasure);
+
       if (pending && !iAmKO) {
         windMoveChoiceDiv.style.display = "block";
         windDirSpan.textContent = directionSymbolsFull[currentGame.wind] || "?"; // show the wind that just blew
-        moveWithWindBtn.disabled = false;
+        moveWithWindBtn.disabled = hasTreasure; // <-- disable if player has treasure
         stayInPlaceBtn.disabled = false;
         windMoveChoiceDiv.querySelector('p').textContent = "Wiatr wieje! Wybierz:";
       } else if (pending && iAmKO) {
@@ -231,6 +471,19 @@
       currentGame = game;
       drawGrid(game);
       windInfo.textContent = `Wind: ${game.wind} ${directionSymbolsFull[game.wind] || "?"}`;
+      // Show wind warning if next move will trigger wind
+      const windWarningEl = document.getElementById('windWarning');
+      if (game.moveTurnCounter === 1 && player && game.currentTurn === player) {
+        windWarningEl.style.display = '';
+      } else {
+        windWarningEl.style.display = 'none';
+      }
+      if (game.winner) {
+        turnInfo.textContent = `🎉 ${game.winner} wins by bringing the treasure to their port!`;
+        Object.values(btns).forEach(btn => btn.disabled = true);
+        btnToggleMode.disabled = true;
+        return;
+      }
       if (player) {
         if (game.currentTurn === player && lastTurn !== player) { mode = "move"; }
         lastTurn = game.currentTurn;
@@ -251,6 +504,7 @@
     function wrap(value) { return (value + SIZE) % SIZE; }
 
     function getRandomUnoccupiedCell(game) {
+      console.log('Finding random unoccupied cell...');
       let cell; let attempts = 0;
       do {
         cell = { row: Math.floor(Math.random() * SIZE), col: Math.floor(Math.random() * SIZE) };
@@ -259,43 +513,139 @@
       return cell;
     }
 
+    function getRandomVortex() {
+      const vortexes = [
+        {row: 2.5, col: 2.5},
+        {row: 3.5, col: 3.5},
+        {row: 4.5, col: 4.5}
+      ];
+      return vortexes[Math.floor(Math.random() * vortexes.length)];
+    }
+
+    function getAllowedDirections(wind) {
+      // All directions in order (clockwise)
+      const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+      const vectors = {
+        N: {row:-1, col:0}, NE:{row:-1,col:1}, E:{row:0,col:1}, SE:{row:1,col:1},
+        S:{row:1,col:0}, SW:{row:1,col:-1}, W:{row:0,col:-1}, NW:{row:-1,col:-1}
+      };
+      const idx = dirs.indexOf(wind);
+      // Adjacent directions (clockwise and counterclockwise)
+      const adj1 = dirs[(idx + 1) % 8];
+      const adj2 = dirs[(idx + 7) % 8];
+      // Perpendicular directions (90 degrees left/right)
+      const perp1 = dirs[(idx + 2) % 8];
+      const perp2 = dirs[(idx + 6) % 8];
+      // Collect all allowed directions
+      const allowedNames = [wind, adj1, adj2, perp1, perp2];
+      return allowedNames.map(d => vectors[d]);
+    }
+
     function checkCollisionsAndHandle(game, playerName) {
       if (!game.debris) return;
       let playerObj = playerName === "player1" ? game.p1 : game.p2;
       let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
+      console.log('Checking for debris collision for', playerName, 'debrisIdx:', debrisIdx);
       if (debrisIdx !== -1) {
+        console.log('Collision with debris detected for', playerName);
         const newCell = getRandomUnoccupiedCell(game);
         game.debris[debrisIdx] = newCell;
         game[playerName + "SkipTurn"] = true;
-        // don't move the player here
+        // Always remove treasure and respawn if hit by debris
+        if (playerName === "player1") {
+          if (game.p1HasTreasure) {
+            game.p1HasTreasure = false;
+            console.log('Player 1 lost treasure due to debris collision!');
+            game.treasure = getRandomVortex();
+          }
+        }
+        if (playerName === "player2") {
+          if (game.p2HasTreasure) {
+            game.p2HasTreasure = false;
+            console.log('Player 2 lost treasure due to debris collision!');
+            game.treasure = getRandomVortex();
+          }
+        }
       }
     }
     function checkBothPlayersOnSameDebris(game) {
-      if (!game.debris) return;
-      if (game.p1.row === game.p2.row && game.p1.col === game.p2.col) {
-        let debrisIdx = game.debris.findIndex(d => d.row === game.p1.row && d.col === game.p1.col);
-        if (debrisIdx !== -1) {
-          const newCell = getRandomUnoccupiedCell(game);
-          game.debris[debrisIdx] = newCell;
-          game["player1SkipTurn"] = true;
-          game["player2SkipTurn"] = true;
-        }
-      }
     }
 
     // Blow wind (moves debris) using current game.wind
     function blowWind(game) {
+      console.log('Blowing wind:', game.wind);
       if (!game.debris || !game.wind) return;
       const v = windVectors[game.wind];
-      game.debris = game.debris.map(d => ({ row: wrap(d.row + v.row), col: wrap(d.col + v.col) }));
+      const p1Port = { row: SIZE - 1, col: 0 };
+      const p2Port = { row: 0, col: SIZE - 1 };
+
+      // First, calculate all intended next positions
+      let intended = game.debris.map(d => {
+        return {
+          from: { row: d.row, col: d.col },
+          to: { row: wrap(d.row + v.row), col: wrap(d.col + v.col) }
+        };
+      });
+
+      // Now, resolve moves: if intended position is a port or will be occupied, stay in place
+      let newDebris = [];
+      for (let i = 0; i < intended.length; i++) {
+        const next = intended[i].to;
+        const isPort = (next.row === p1Port.row && next.col === p1Port.col) ||
+                      (next.row === p2Port.row && next.col === p2Port.col);
+
+        // Will another debris also move here?
+        const willStack = intended.some((other, j) =>
+          j !== i &&
+          other.to.row === next.row &&
+          other.to.col === next.col
+        );
+
+        // Will a debris stay in place here?
+        const willStay = intended.some((other, j) =>
+          j !== i &&
+          other.from.row === next.row &&
+          other.from.col === next.col &&
+          (
+            // That debris is also blocked (by port or stacking)
+            ((other.to.row === next.row && other.to.col === next.col) ||
+            (other.to.row === p1Port.row && other.to.col === p1Port.col) ||
+            (other.to.row === p2Port.row && other.to.col === p2Port.col))
+          )
+        );
+
+        if (isPort || willStack || willStay) {
+          newDebris.push(intended[i].from); // Stay in place
+        } else {
+          newDebris.push(next);
+        }
+      }
+      game.debris = newDebris;
+
       ["player1", "player2"].forEach(playerKey => {
         const playerObj = playerKey === "player1" ? game.p1 : game.p2;
         let debrisIdx = game.debris.findIndex(d => d.row === playerObj.row && d.col === playerObj.col);
         if (debrisIdx !== -1) {
           const newCell = getRandomUnoccupiedCell(game);
+          console.log(`Player ${playerKey} hit debris while wind blew! Moving debris from (${playerObj.row}, ${playerObj.col}) to (${newCell.row}, ${newCell.col})`);
           game.debris[debrisIdx] = newCell;
           game[playerKey + "SkipTurn"] = true;
-          game[playerKey + "JustKOd"] = true; // mark they were KO'd by this wind
+          game[playerKey + "JustKOd"] = true;
+
+          if (playerKey === "player1") {
+            if (game.p1HasTreasure) {
+              game.p1HasTreasure = false;
+              console.log('Player 1 lost treasure due to debris collision!');
+              game.treasure = getRandomVortex();
+            }
+          }
+          if (playerKey === "player2") {
+            if (game.p2HasTreasure) {
+              game.p2HasTreasure = false;
+              console.log('Player 2 lost treasure due to debris collision!');
+              game.treasure = getRandomVortex();
+            }
+          }
         }
       });
       game.p1PendingWindMove = true;
@@ -309,91 +659,41 @@
     function submitWindMove(moveWithWind) {
       gameRef.transaction(game => {
         if (!game) return game;
-        const v = windVectors[game.wind]; // IMPORTANT: use the wind that blew (we won't apply windNext until both choices resolved)
+        const v = windVectors[game.wind];
 
         if (player === "player1" && game.p1PendingWindMove) {
-          if (!game.player1JustKOd && moveWithWind) {
-            game.p1.row = wrap(game.p1.row + v.row);
-            game.p1.col = wrap(game.p1.col + v.col);
-          }
-          game.p1PendingWindMove = false;
-        }
-        if (player === "player2" && game.p2PendingWindMove) {
-          if (!game.player2JustKOd && moveWithWind) {
-            game.p2.row = wrap(game.p2.row + v.row);
-            game.p2.col = wrap(game.p2.col + v.col);
-          }
-          game.p2PendingWindMove = false;
-        }
+              // Prevent moving with wind if player has treasure
+              if (!game.player1JustKOd && moveWithWind && !game.p1HasTreasure) {
+                game.p1.row = wrap(game.p1.row + v.row);
+                game.p1.col = wrap(game.p1.col + v.col);
+              }
+              game.p1PendingWindMove = false;
+            }
+            if (player === "player2" && game.p2PendingWindMove) {
+              // Prevent moving with wind if player has treasure
+              if (!game.player2JustKOd && moveWithWind && !game.p2HasTreasure) {
+                game.p2.row = wrap(game.p2.row + v.row);
+                game.p2.col = wrap(game.p2.col + v.col);
+              }
+              game.p2PendingWindMove = false;
+            }
 
-        // Only after both players have resolved their wind choice do we handle collisions and apply the scheduled wind change
+        // Always check for collisions and treasure loss after wind movement
+        checkCollisionsAndHandle(game, "player1");
+        checkCollisionsAndHandle(game, "player2");
+        checkBothPlayersOnSameDebris(game);
+
         if (!game.p1PendingWindMove && !game.p2PendingWindMove) {
-          checkCollisionsAndHandle(game, "player1");
-          checkCollisionsAndHandle(game, "player2");
-          checkBothPlayersOnSameDebris(game);
-
-          // Apply scheduled wind change now (if any)
           if (game.windNext) {
             game.wind = game.windNext;
             game.windNext = null;
           }
-
-          // Clear temporary KO markers after resolution
           game.player1JustKOd = false;
           game.player2JustKOd = false;
         }
 
         return game;
       });
-    }
-
-    function handleAction(deltaRow, deltaCol) {
-      if (!player || !currentGame) return;
-      if (currentGame.currentTurn !== player) return;
-      if ((player === "player1" && currentGame.p1PendingWindMove) || (player === "player2" && currentGame.p2PendingWindMove)) return;
-      if (currentGame[player + "SkipTurn"]) {
-        gameRef.transaction(game => {
-          if (!game) return game;
-          if (game.currentTurn !== player) return game;
-          game[player + "SkipTurn"] = false;
-          game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
-          return game;
-        });
-        return;
-      }
-
-      if (mode === "move") {
-        gameRef.transaction(game => {
-          if (!game) return game;
-          if (game.currentTurn !== player) return game;
-          if (player === "player1") { game.p1.row = wrap(game.p1.row + deltaRow); game.p1.col = wrap(game.p1.col + deltaCol); }
-          else { game.p2.row = wrap(game.p2.row + deltaRow); game.p2.col = wrap(game.p2.col + deltaCol); }
-          checkCollisionsAndHandle(game, player);
-          game.moveTurnCounter = (game.moveTurnCounter || 0) + 1;
-          if (game.moveTurnCounter >= 2) {
-            blowWind(game);
-            game.moveTurnCounter = 0;
-          }
-          game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
-          return game;
-        });
-      } else {
-        let vert = deltaRow === -1 ? "N" : deltaRow === 1 ? "S" : "";
-        let horiz = deltaCol === -1 ? "W" : deltaCol === 1 ? "E" : "";
-        const newWind = vert + horiz;
-        if (!allDirections.includes(newWind)) { console.warn("Invalid wind direction selected:", newWind); return; }
-        if (currentGame.wind === newWind) { console.log("Wind is already", newWind, "- no change"); return; }
-
-        // Schedule wind change: blow using CURRENT wind now, but set windNext so new direction applies after players choose
-        gameRef.transaction(game => {
-          if (!game) return game;
-          if (game.currentTurn !== player) return game;
-          blowWind(game); // blows with game.wind
-          game.windNext = newWind; // schedule the new wind to apply AFTER players decide
-          game.currentTurn = (game.currentTurn === "player1") ? "player2" : "player1";
-          return game;
-        });
-      }
     }
 
     btns.up.onclick = () => handleAction(-1, 0);
@@ -419,7 +719,11 @@
         const key = `${r},${c}`;
         if (!forbidden.has(key) && !debris.some(d => d.row === r && d.col === c)) debris.push({ row: r, col: c });
       }
+
+      // Randomly place treasure in one of the vortex corners
+      const treasure = getRandomVortex();
       const newWind = Math.random() < 0.5 ? "NW" : "SE";
+
       return gameRef.set({
         p1: p1start,
         p2: p2start,
@@ -427,15 +731,20 @@
         wind: newWind,
         windNext: null,
         debris: debris,
+        treasure: treasure,
         moveTurnCounter: 0,
         p1PendingWindMove: false,
         p2PendingWindMove: false,
         player1SkipTurn: false,
         player2SkipTurn: false,
         player1JustKOd: false,
-        player2JustKOd: false
+        player2JustKOd: false,
+        p1HasTreasure: false,
+        p2HasTreasure: false
       });
     }
+// ...existing code...
+// ...existing code...
 
     document.getElementById('btnResetGame').onclick = () => { resetGame().then(() => console.log('Gra została zresetowana')).catch(err => console.error('Błąd resetu gry:', err)); };
   </script>
